@@ -1,4 +1,5 @@
 import { Shape, ShapeType } from "../config/types";
+import { generateId } from "../config/utils";
 
 export class SlateEngine {
     private canvas: HTMLCanvasElement;
@@ -56,7 +57,7 @@ export class SlateEngine {
     private handleMouseDown(e: MouseEvent) {
         this.isDrawing = true;
         const { x, y } = this.getMouseCoordinates(e);
-        const id = Date.now().toString();
+        const id = generateId();
 
         const base = { id, x, y, strokeColor: this.strokeColor, strokeWidth: this.strokeWidth };
 
