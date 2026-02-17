@@ -23,6 +23,7 @@
   ],
   "dependencies": {
     "geist": "^1.7.0",
-    "lucide-react": "^0.564.0"
+    "lucide-react": "^0.564.0",
+    "perfect-freehand": "^1.2.3"
   }
 }

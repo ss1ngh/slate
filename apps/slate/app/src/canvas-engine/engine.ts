@@ -1,5 +1,6 @@
 import { Shape, ShapeType } from "../config/types";
 import { generateId } from "../config/utils";
+import {getStroke} from "perfect-freehand";
 
 export class SlateEngine {
     private canvas: HTMLCanvasElement;
@@ -145,30 +146,72 @@ export class SlateEngine {
             case "arrow":
                 this.drawArrow(shape.x, shape.y, shape.endX, shape.endY);
                 break;
-            case "pencil": {
-                const firstPoint = shape.points[0];
-                if (!firstPoint) break;
-                this.ctx.moveTo(firstPoint.x, firstPoint.y);
-                for (const pt of shape.points) {
-                    this.ctx.lineTo(pt.x, pt.y);
-                }
-                this.ctx.stroke();
+           case "pencil": {
+                //need 2 points to draw a shape
+                if (shape.points.length < 2) break;
+                
+                //calculate the smooth outline
+                const strokePath = this.getSvgPathFromStroke(shape.points);
+
+                //fill colour since perfect-freehand creates a polygon
+                this.ctx.fillStyle = shape.strokeColor;
+                this.ctx.fill(strokePath); 
                 break;
             }
         }
     }
 
     private drawArrow(x1: number, y1: number, x2: number, y2: number) {
-        const headLength = 15; 
+        const headLength = 20; 
         const angle = Math.atan2(y2 - y1, x2 - x1);
 
+        //draw main line
+        this.ctx.beginPath(); 
         this.ctx.moveTo(x1, y1);
         this.ctx.lineTo(x2, y2);
-        //draw the arrow head
-        this.ctx.lineTo(x2 - headLength * Math.cos(angle - Math.PI / 6), y2 - headLength * Math.sin(angle - Math.PI / 6));
-        this.ctx.moveTo(x2, y2);
-        this.ctx.lineTo(x2 - headLength * Math.cos(angle + Math.PI / 6), y2 - headLength * Math.sin(angle + Math.PI / 6));
         this.ctx.stroke();
+
+        //draw arrowhead
+        this.ctx.beginPath();
+        this.ctx.moveTo(x2, y2);
+        
+        //left wing
+        this.ctx.lineTo(
+            x2 - headLength * Math.cos(angle - Math.PI / 6), 
+            y2 - headLength * Math.sin(angle - Math.PI / 6)
+        );
+        
+        //right wing
+        this.ctx.moveTo(x2, y2);
+        this.ctx.lineTo(
+            x2 - headLength * Math.cos(angle + Math.PI / 6), 
+            y2 - headLength * Math.sin(angle + Math.PI / 6)
+        );
+        
+        this.ctx.stroke();
+    }
+
+    //convert stroke points into a Path2D object for smoother lines
+    private getSvgPathFromStroke(points: {x: number, y: number}[]) {
+        const strokePoints = getStroke(points, {
+            size: 10, //ink width
+            thinning: 0.5, //pressure sensitivity
+            smoothing: 0.5,
+            streamline: 0.5,
+        });
+
+        if (!strokePoints.length) return new Path2D();
+        const d = strokePoints.reduce(
+            (acc, [x0, y0], i, arr) => {
+                const [x1, y1] = arr[(i + 1) % arr.length]!;
+                acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
+                return acc;
+            },
+            ["M", ...strokePoints[0]!, "Q"]
+        );
+
+        d.push("Z");
+        return new Path2D(d.join(" "));
     }
 
     public handleResize() {
