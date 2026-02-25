@@ -6,6 +6,8 @@ export class SlateEngine {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     private shapes: Shape[] = [];
+    private history : Shape[][] = [];
+    private redoStack : Shape[][] = [];
 
     private isDrawing: boolean = false;
     private currentShape: Shape | null = null;
@@ -115,8 +117,17 @@ export class SlateEngine {
     }
 
     private handleMouseUp() {
-        if (this.currentShape) this.shapes.push(this.currentShape);
-        this.saveToLocalStorage();
+        if (this.currentShape) {
+            //push current state of canvas before adding new shape
+            this.history.push([...this.shapes]);
+
+            //add new shape
+            this.shapes.push(this.currentShape)
+
+            this.redoStack = [];
+
+            this.saveToLocalStorage();
+        };
         this.isDrawing = false;
         this.currentShape = null;
         this.render();
@@ -284,5 +295,33 @@ export class SlateEngine {
                 console.error("Failed to parse saved shapes");
             }
         }
+    }
+
+
+    public undo() {
+        if (this.history.length === 0) return; 
+
+        //save current state to the redo stack
+        this.redoStack.push([...this.shapes]);
+
+        this.shapes = this.history.pop()!;
+
+        //update storage
+        this.saveToLocalStorage();
+        this.render();
+    }
+
+    
+    public redo() {
+        if (this.redoStack.length === 0) return; 
+
+        //save current state to history
+        this.history.push([...this.shapes]);
+
+        this.shapes = this.redoStack.pop()!;
+
+        //update storage
+        this.saveToLocalStorage();
+        this.render();
     }
 }

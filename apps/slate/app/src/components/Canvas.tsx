@@ -37,6 +37,48 @@
       }
     }, [activeTool]);
 
+    //undo redo actions+shortcut keys
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (!engineRef.current) return;
+
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+          return;
+        }
+
+        //ctrl+z or cmd+z
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            engineRef.current.redo();
+          } else {
+            engineRef.current.undo();
+          }
+          return;
+        }
+        
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          engineRef.current.redo();
+          return;
+        }
+
+        //tool selection shortcuts
+        switch(e.key.toLowerCase()) {
+          case 'v': setActiveTool('select'); break;
+          case 'p': setActiveTool('pencil'); break;
+          case 'r': setActiveTool('rect'); break;
+          case 'c': setActiveTool('circle'); break;
+          case 'l': setActiveTool('line'); break;
+          case 'a': setActiveTool('arrow'); break;
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
     //render DOM element
     return (
       <div className='relative w-full h-screen'>
