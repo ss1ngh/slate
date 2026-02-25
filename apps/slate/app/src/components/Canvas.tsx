@@ -68,6 +68,15 @@ export default function Canvas() {
         return;
       }
 
+      // Clear canvas shortcut: Ctrl/Cmd + Shift + Backspace
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'Backspace' || e.key === 'Delete')) {
+        e.preventDefault();
+        if (confirm("Are you sure you want to clear the entire canvas?")) {
+          engineRef.current.clearCanvas();
+        }
+        return;
+      }
+
       //tool selection shortcuts
       switch (e.key.toLowerCase()) {
         case 'v': setActiveTool('select'); break;

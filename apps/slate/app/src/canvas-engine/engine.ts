@@ -10,6 +10,9 @@ export class SlateEngine {
     private redoStack: Shape[][] = [];
 
     private isDrawing: boolean = false;
+    private isDragging: boolean = false;
+    private dragStartPos = { x: 0, y: 0 };
+
     private currentShape: Shape | null = null;
     private selectedShape: Shape | null = null;
 
@@ -50,8 +53,28 @@ export class SlateEngine {
             this.render();
         }
     }
-    public setColor(color: string) { this.strokeColor = color; }
-    public setWidth(width: number) { this.strokeWidth = width; }
+
+    public setColor(color: string) {
+        this.strokeColor = color;
+        if (this.selectedShape && this.selectedTool === 'select') {
+            // Update selected shape color
+            this.history.push([...this.shapes]);
+            this.selectedShape.strokeColor = color;
+            this.saveToLocalStorage();
+            this.render();
+        }
+    }
+
+    public setWidth(width: number) {
+        this.strokeWidth = width;
+        if (this.selectedShape && this.selectedTool === 'select') {
+            // Update selected shape width
+            this.history.push([...this.shapes]);
+            this.selectedShape.strokeWidth = width;
+            this.saveToLocalStorage();
+            this.render();
+        }
+    }
 
     private attachListeners() {
         this.canvas.addEventListener("mousedown", this.handleMouseDown.bind(this));
@@ -85,7 +108,16 @@ export class SlateEngine {
 
         if (this.selectedTool === 'select') {
             const shape = this.getShapeAtPosition(x, y);
-            this.selectedShape = shape;
+
+            // If we click on an already selected shape, start dragging
+            if (shape && shape.id === this.selectedShape?.id) {
+                this.isDragging = true;
+                this.dragStartPos = { x, y };
+                this.history.push([...this.shapes]);
+            } else {
+                this.selectedShape = shape;
+            }
+
             this.render();
             return;
         }
@@ -113,8 +145,40 @@ export class SlateEngine {
     }
 
     private handleMouseMove(e: MouseEvent) {
-        if (!this.isDrawing || !this.currentShape) return;
         const { x, y } = this.getMouseCoordinates(e);
+
+        if (this.isDragging && this.selectedShape) {
+            const dx = x - this.dragStartPos.x;
+            const dy = y - this.dragStartPos.y;
+
+            switch (this.selectedShape.type) {
+                case 'rect':
+                case 'circle':
+                case 'line':
+                case 'arrow':
+                    this.selectedShape.x += dx;
+                    this.selectedShape.y += dy;
+                    if ('endX' in this.selectedShape) {
+                        this.selectedShape.endX += dx;
+                        this.selectedShape.endY += dy;
+                    }
+                    break;
+                case 'pencil':
+                    this.selectedShape.x += dx;
+                    this.selectedShape.y += dy;
+                    this.selectedShape.points = this.selectedShape.points.map(p => ({
+                        x: p.x + dx,
+                        y: p.y + dy
+                    }));
+                    break;
+            }
+
+            this.dragStartPos = { x, y };
+            this.render();
+            return;
+        }
+
+        if (!this.isDrawing || !this.currentShape) return;
 
         switch (this.currentShape.type) {
             case "rect":
@@ -122,9 +186,9 @@ export class SlateEngine {
                 this.currentShape.height = y - this.currentShape.y;
                 break;
             case "circle":
-                const dx = x - this.currentShape.x;
-                const dy = y - this.currentShape.y;
-                this.currentShape.radius = Math.sqrt(dx * dx + dy * dy);
+                const dxCircle = x - this.currentShape.x;
+                const dyCircle = y - this.currentShape.y;
+                this.currentShape.radius = Math.sqrt(dxCircle * dxCircle + dyCircle * dyCircle);
                 break;
             case "line":
             case "arrow":
@@ -150,7 +214,13 @@ export class SlateEngine {
 
             this.saveToLocalStorage();
         };
+
+        if (this.isDragging) {
+            this.saveToLocalStorage();
+        }
+
         this.isDrawing = false;
+        this.isDragging = false;
         this.currentShape = null;
         this.render();
     }
@@ -476,6 +546,19 @@ export class SlateEngine {
         this.shapes = this.redoStack.pop()!;
 
         //update storage
+        this.saveToLocalStorage();
+        this.render();
+    }
+
+    public clearCanvas() {
+        if (this.shapes.length === 0) return;
+
+        // Save history for undo
+        this.history.push([...this.shapes]);
+        this.shapes = [];
+        this.selectedShape = null;
+        this.redoStack = [];
+
         this.saveToLocalStorage();
         this.render();
     }
