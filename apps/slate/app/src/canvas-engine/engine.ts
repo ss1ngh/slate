@@ -1,4 +1,4 @@
-import { Shape, ShapeType } from "../config/types";
+import { Shape, ShapeType, ToolType } from "../config/types";
 import { generateId } from "../config/utils";
 import {getStroke} from "perfect-freehand";
 
@@ -12,7 +12,7 @@ export class SlateEngine {
     private isDrawing: boolean = false;
     private currentShape: Shape | null = null;
     
-    private selectedTool: ShapeType = 'pencil';
+    private selectedTool: ToolType = 'pencil';
     private strokeColor: string = "#000000";
     private strokeWidth: number = 2;
 
@@ -42,7 +42,7 @@ export class SlateEngine {
         this.ctx.scale(dpr, dpr);
     }
 
-    public setTool(tool: ShapeType) { this.selectedTool = tool; }
+    public setTool(tool: ToolType) { this.selectedTool = tool; }
     public setColor(color: string) { this.strokeColor = color; }
     public setWidth(width: number) { this.strokeWidth = width; }
 
@@ -131,6 +131,45 @@ export class SlateEngine {
         this.isDrawing = false;
         this.currentShape = null;
         this.render();
+    }
+
+
+    private getShapeAtPosition(x: number, y: number): Shape | null {
+
+        for (let i = this.shapes.length - 1; i >= 0; i--) {
+            const shape = this.shapes[i];
+
+            if(!shape) continue;
+            
+            switch (shape.type) {
+                case 'rect': {
+                    const minX = Math.min(shape.x, shape.x + shape.width);
+                    const maxX = Math.max(shape.x, shape.x + shape.width);
+                    const minY = Math.min(shape.y, shape.y + shape.height);
+                    const maxY = Math.max(shape.y, shape.y + shape.height);
+
+                    // AABB (Axis-Aligned Bounding Box) Collision
+                    if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+                        return shape;
+                    }
+                    break;
+                }
+                case 'circle': {
+                    // Distance formula (Pythagorean theorem)
+                    const dx = x - shape.x;
+                    const dy = y - shape.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    // If distance from center is less than radius, we clicked inside it
+                    if (distance <= shape.radius) {
+                        return shape;
+                    }
+                    break;
+                }
+                //other shapes
+            }
+        }
+        return null;
     }
 
     public render(): void {
@@ -311,7 +350,7 @@ export class SlateEngine {
         this.render();
     }
 
-    
+
     public redo() {
         if (this.redoStack.length === 0) return; 
 

@@ -1,4 +1,5 @@
-export type ShapeType = 'rect' | 'circle' | 'line' | 'arrow' | 'pencil';
+export type ToolType = 'select' | 'rect' | 'circle' | 'line' | 'arrow' | 'pencil';
+export type ShapeType = 'rect' | 'circle' | 'line' | 'arrow' | 'pencil' | 'select';
 
 export interface BaseShape {
   id: string;
