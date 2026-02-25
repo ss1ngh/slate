@@ -14,6 +14,8 @@ export class SlateEngine {
     private strokeColor: string = "#000000";
     private strokeWidth: number = 2;
 
+    private camera = { x: 0, y: 0, z: 1 }; // x, y : offset z : zoom level
+
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
         const context = canvas.getContext("2d", { alpha: false });
@@ -22,6 +24,7 @@ export class SlateEngine {
 
         this.initDPI();
         this.attachListeners();
+        this.loadFromLocalStorage();
     }
 
     private initDPI() {
@@ -49,10 +52,16 @@ export class SlateEngine {
 
     private getMouseCoordinates(e: MouseEvent) {
         const rect = this.canvas.getBoundingClientRect();
-        return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
+
+        //get mouse position on screen
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+
+        return{
+            x : (screenX - this.camera.x) / this.camera.z,
+            y : (screenY - this.camera.y) / this.camera.z,
         };
+
     }
 
     private handleMouseDown(e: MouseEvent) {
@@ -107,20 +116,27 @@ export class SlateEngine {
 
     private handleMouseUp() {
         if (this.currentShape) this.shapes.push(this.currentShape);
+        this.saveToLocalStorage();
         this.isDrawing = false;
         this.currentShape = null;
         this.render();
     }
 
     public render(): void {
-        this.ctx.save();
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        this.ctx.fillStyle = "#ffffff"; //canvas background
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.restore();
+        this.ctx.resetTransform();
 
-        for (const shape of this.shapes) this.draw(shape);
-        if (this.currentShape) this.draw(this.currentShape);
+        //clear canvas before drawing
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+       //slide/pan the paper 
+        this.ctx.translate(this.camera.x, this.camera.y);
+
+        //zoom the paper
+        this.ctx.scale(this.camera.z, this.camera.z);
+
+        for(const shape of this.shapes) {
+            this.draw(shape);
+        }
     }
 
     private draw(shape: Shape): void {
@@ -217,5 +233,56 @@ export class SlateEngine {
     public handleResize() {
         this.initDPI();
         this.render();
+    }
+
+    private handleWheel(e : WheelEvent){
+        e.preventDefault();  //stop browser from scrolling the page
+
+        //checks if user is pinching the trackpad - ctrlKey implies pinch on trackpads
+        if(e.ctrlKey || e.metaKey) {
+            const ZOOM_SPEED = 0.005
+
+            const zoomDelta = -e.deltaY * ZOOM_SPEED;
+            const newZoom = Math.max(0.1, Math.min(5, this.camera.z + zoomDelta));
+
+            // 2. Calculate where the mouse is in the world *before* zooming
+            // We want to zoom towards the mouse pointer
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const worldX = (mouseX - this.camera.x) / this.camera.z;
+            const worldY = (mouseY - this.camera.y) / this.camera.z;
+
+            // 3. Update Camera Zoom
+            this.camera.z = newZoom;
+
+            // 4. Adjust Pan so the mouse stays over the same world point
+            this.camera.x = mouseX - worldX * newZoom;
+            this.camera.y = mouseY - worldY * newZoom;
+        } else {
+            // Normal Scroll = Pan
+            this.camera.x -= e.deltaX;
+            this.camera.y -= e.deltaY;
+        }
+        this.render();
+    }
+
+    //local storage
+    private saveToLocalStorage() {
+        localStorage.setItem('slate_shapes', JSON.stringify(this.shapes));
+    }
+
+
+    private loadFromLocalStorage() {
+        const saved = localStorage.getItem('slate_shapes');
+        if(saved) {
+            try {
+                this.shapes = JSON.parse(saved);
+                this.render();
+            } catch(e) {
+                console.error("Failed to parse saved shapes");
+            }
+        }
     }
 }
