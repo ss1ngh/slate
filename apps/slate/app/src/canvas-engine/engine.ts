@@ -38,7 +38,7 @@ export class SlateEngine {
         let newZoom = this.camera.z + deltaZ;
         newZoom = Math.max(0.1, Math.min(newZoom, 5));
 
-        // Calculate center of screen
+        //calculate center of screen
         const rect = this.canvas.getBoundingClientRect();
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;

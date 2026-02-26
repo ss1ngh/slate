@@ -136,20 +136,20 @@ export default function Canvas() {
       />
 
       {/* Bottom Left: History Controls */}
-      <div className="fixed bottom-6 left-6 z-50 flex items-center gap-1 p-1 bg-slate-100 border border-slate-200 rounded-xl shadow-lg">
+      <div className="fixed bottom-6 left-6 z-50 flex items-center gap-2 px-3 py-2 bg-white/95 backdrop-blur-xl border border-slate-200/50 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-slate-600 font-medium text-sm">
         <button
           onClick={() => engineRef.current?.undo()}
-          className="p-2 text-slate-600 hover:bg-white hover:text-indigo-600 rounded-lg transition-all"
+          className="p-1.5 hover:text-indigo-600 hover:bg-slate-100 rounded transition-all"
           title="Undo (Ctrl+Z)"
         >
-          <Undo2 size={18} />
+          <Undo2 size={16} />
         </button>
         <button
           onClick={() => engineRef.current?.redo()}
-          className="p-2 text-slate-600 hover:bg-white hover:text-indigo-600 rounded-lg transition-all"
+          className="p-1.5 hover:text-indigo-600 hover:bg-slate-100 rounded transition-all"
           title="Redo (Ctrl+Y)"
         >
-          <Redo2 size={18} />
+          <Redo2 size={16} />
         </button>
       </div>
 
