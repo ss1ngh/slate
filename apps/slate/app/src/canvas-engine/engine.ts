@@ -1,4 +1,4 @@
-import { Shape, ShapeType, ToolType } from "../config/types";
+import { DiamondShape, Shape, ShapeType, ToolType } from "../config/types";
 import { generateId } from "../config/utils";
 import { getStroke } from "perfect-freehand";
 
@@ -16,6 +16,8 @@ export class SlateEngine {
 
     private isDrawing: boolean = false;
     private isDragging: boolean = false;
+    private isPanning: boolean = false;
+    private panStart = { x: 0, y: 0 };
     private dragStartPos = { x: 0, y: 0 };
 
     private currentShape: Shape | null = null;
@@ -53,6 +55,14 @@ export class SlateEngine {
 
     public setTool(tool: ToolType) {
         this.selectedTool = tool;
+        // Update cursor
+        if (tool === 'hand') {
+            this.canvas.style.cursor = 'grab';
+        } else if (tool === 'eraser') {
+            this.canvas.style.cursor = 'crosshair';
+        } else {
+            this.canvas.style.cursor = 'default';
+        }
         if (tool !== 'select') {
             this.selectedShape = null;
             if (this.onSelectionChange) this.onSelectionChange(null);
@@ -113,6 +123,28 @@ export class SlateEngine {
     private handleMouseDown(e: MouseEvent) {
         const { x, y } = this.getMouseCoordinates(e);
 
+        // Hand tool: start panning
+        if (this.selectedTool === 'hand') {
+            this.isPanning = true;
+            this.panStart = { x: e.clientX - this.camera.x, y: e.clientY - this.camera.y };
+            this.canvas.style.cursor = 'grabbing';
+            return;
+        }
+
+        // Eraser tool: erase shape under cursor immediately
+        if (this.selectedTool === 'eraser') {
+            const shape = this.getShapeAtPosition(x, y);
+            if (shape) {
+                this.history.push([...this.shapes]);
+                this.shapes = this.shapes.filter(s => s.id !== shape.id);
+                this.redoStack = [];
+                this.saveToLocalStorage();
+                this.render();
+            }
+            this.isDrawing = true; // allow drag-erase
+            return;
+        }
+
         if (this.selectedTool === 'select') {
             const shape = this.getShapeAtPosition(x, y);
 
@@ -139,6 +171,9 @@ export class SlateEngine {
             case "rect":
                 this.currentShape = { ...base, type: 'rect', width: 0, height: 0 };
                 break;
+            case "diamond":
+                this.currentShape = { ...base, type: 'diamond', width: 0, height: 0 };
+                break;
             case "circle":
                 this.currentShape = { ...base, type: 'circle', radius: 0 };
                 break;
@@ -155,12 +190,34 @@ export class SlateEngine {
     private handleMouseMove(e: MouseEvent) {
         const { x, y } = this.getMouseCoordinates(e);
 
+        // Hand tool panning
+        if (this.isPanning) {
+            this.camera.x = e.clientX - this.panStart.x;
+            this.camera.y = e.clientY - this.panStart.y;
+            this.render();
+            return;
+        }
+
+        // Drag-erase while holding mouse button with eraser
+        if (this.selectedTool === 'eraser' && this.isDrawing) {
+            const shape = this.getShapeAtPosition(x, y);
+            if (shape) {
+                this.history.push([...this.shapes]);
+                this.shapes = this.shapes.filter(s => s.id !== shape.id);
+                this.redoStack = [];
+                this.saveToLocalStorage();
+                this.render();
+            }
+            return;
+        }
+
         if (this.isDragging && this.selectedShape) {
             const dx = x - this.dragStartPos.x;
             const dy = y - this.dragStartPos.y;
 
             switch (this.selectedShape.type) {
                 case 'rect':
+                case 'diamond':
                 case 'circle':
                 case 'line':
                 case 'arrow':
@@ -192,6 +249,7 @@ export class SlateEngine {
 
         switch (this.currentShape.type) {
             case "rect":
+            case "diamond":
                 this.currentShape.width = x - this.currentShape.x;
                 this.currentShape.height = y - this.currentShape.y;
                 break;
@@ -215,6 +273,13 @@ export class SlateEngine {
     }
 
     private handleMouseUp() {
+        // Stop panning
+        if (this.isPanning) {
+            this.isPanning = false;
+            this.canvas.style.cursor = 'grab';
+            return;
+        }
+
         if (this.currentShape) {
             //push current state of canvas before adding new shape
             this.history.push([...this.shapes]);
@@ -298,6 +363,19 @@ export class SlateEngine {
                     if (x >= minX && x <= maxX && y >= minY && y <= maxY) return shape;
                     break;
                 }
+                case 'diamond': {
+                    // Hit-test diamond as bounding box (approximate)
+                    const cx = shape.x + shape.width / 2;
+                    const cy = shape.y + shape.height / 2;
+                    const hw = Math.abs(shape.width) / 2;
+                    const hh = Math.abs(shape.height) / 2;
+                    if (hw > 0 && hh > 0) {
+                        const nx = Math.abs(x - cx) / hw;
+                        const ny = Math.abs(y - cy) / hh;
+                        if (nx + ny <= 1) return shape;
+                    }
+                    break;
+                }
                 case 'circle': {
                     const dx = x - shape.x;
                     const dy = y - shape.y;
@@ -374,6 +452,12 @@ export class SlateEngine {
                 bw = Math.abs(shape.width) + padding * 2;
                 bh = Math.abs(shape.height) + padding * 2;
                 break;
+            case 'diamond':
+                bx = Math.min(shape.x, shape.x + shape.width) - padding;
+                by = Math.min(shape.y, shape.y + shape.height) - padding;
+                bw = Math.abs(shape.width) + padding * 2;
+                bh = Math.abs(shape.height) + padding * 2;
+                break;
             case 'circle':
                 bx = shape.x - shape.radius - padding;
                 by = shape.y - shape.radius - padding;
@@ -413,6 +497,17 @@ export class SlateEngine {
             case "rect":
                 this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
                 break;
+            case "diamond": {
+                const cx = shape.x + shape.width / 2;
+                const cy = shape.y + shape.height / 2;
+                this.ctx.moveTo(cx, shape.y);                          // top
+                this.ctx.lineTo(shape.x + shape.width, cy);            // right
+                this.ctx.lineTo(cx, shape.y + shape.height);           // bottom
+                this.ctx.lineTo(shape.x, cy);                          // left
+                this.ctx.closePath();
+                this.ctx.stroke();
+                break;
+            }
             case "circle":
                 this.ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
                 this.ctx.stroke();

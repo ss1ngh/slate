@@ -12,7 +12,7 @@ export default function Canvas() {
   const engineRef = useRef<any>(null);
 
   const [activeTool, setActiveTool] = useState<ShapeType>('pencil');
-  const [strokeColor, setStrokeColor] = useState('#adb5bd');
+  const [strokeColor, setStrokeColor] = useState('#000000');
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
@@ -97,11 +97,14 @@ export default function Canvas() {
       //tool selection shortcuts
       switch (e.key.toLowerCase()) {
         case 'v': setActiveTool('select'); break;
+        case 'h': setActiveTool('hand'); break;
         case 'p': setActiveTool('pencil'); break;
         case 'r': setActiveTool('rect'); break;
+        case 'd': setActiveTool('diamond'); break;
         case 'c': setActiveTool('circle'); break;
         case 'l': setActiveTool('line'); break;
         case 'a': setActiveTool('arrow'); break;
+        case 'e': setActiveTool('eraser'); break;
       }
     };
 
