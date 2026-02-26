@@ -1,5 +1,5 @@
 export type ToolType = 'select' | 'rect' | 'circle' | 'line' | 'arrow' | 'pencil' | 'hand' | 'eraser' | 'diamond';
-export type ShapeType = 'rect' | 'circle' | 'line' | 'arrow' | 'pencil' | 'select' | 'hand' | 'eraser' | 'diamond';
+export type ShapeType = 'rect' | 'circle' | 'line' | 'arrow' | 'pencil' | 'select' | 'hand' | 'eraser' | 'diamond' | 'group';
 
 export interface BaseShape {
   id: string;
@@ -39,4 +39,11 @@ export interface PencilShape extends BaseShape {
   points: { x: number; y: number }[]; //array of coordinates for freehand
 }
 
-export type Shape = RectShape | DiamondShape | CircleShape | LineShape | PencilShape;
+export interface GroupShape extends BaseShape {
+  type: 'group';
+  shapes: Shape[];
+  width: number;
+  height: number;
+}
+
+export type Shape = RectShape | DiamondShape | CircleShape | LineShape | PencilShape | GroupShape;

@@ -25,7 +25,9 @@ export class SlateEngine {
     private dragStartPos = { x: 0, y: 0 };
 
     private currentShape: Shape | null = null;
-    private selectedShape: Shape | null = null;
+    public selectedShapes: Shape[] = [];
+    private selectionBox: { x: number, y: number, w: number, h: number } | null = null;
+    private isBoxSelecting: boolean = false;
 
     private selectedTool: ToolType = 'pencil';
     private strokeColor: string = "#000000";
@@ -92,7 +94,7 @@ export class SlateEngine {
             this.canvas.style.cursor = 'default';
         }
         if (tool !== 'select') {
-            this.selectedShape = null;
+            this.selectedShapes = [];
             if (this.onSelectionChange) this.onSelectionChange(null);
             this.render();
         }
@@ -100,10 +102,9 @@ export class SlateEngine {
 
     public setColor(color: string) {
         this.strokeColor = color;
-        if (this.selectedShape && this.selectedTool === 'select') {
-            // Update selected shape color
+        if (this.selectedShapes.length > 0 && this.selectedTool === 'select') {
             this.history.push([...this.shapes]);
-            this.selectedShape.strokeColor = color;
+            this.selectedShapes.forEach(s => s.strokeColor = color);
             this.saveToLocalStorage();
             this.render();
         }
@@ -111,9 +112,9 @@ export class SlateEngine {
 
     public setWidth(width: number) {
         this.strokeWidth = width;
-        if (this.selectedShape && this.selectedTool === 'select') {
+        if (this.selectedShapes.length > 0 && this.selectedTool === 'select') {
             this.history.push([...this.shapes]);
-            this.selectedShape.strokeWidth = width;
+            this.selectedShapes.forEach(s => s.strokeWidth = width);
             this.saveToLocalStorage();
             this.render();
         }
@@ -121,9 +122,9 @@ export class SlateEngine {
 
     public setStrokeStyle(style: 'solid' | 'dashed' | 'dotted') {
         this.strokeStyle = style;
-        if (this.selectedShape && this.selectedTool === 'select') {
+        if (this.selectedShapes.length > 0 && this.selectedTool === 'select') {
             this.history.push([...this.shapes]);
-            this.selectedShape.strokeStyle = style;
+            this.selectedShapes.forEach(s => s.strokeStyle = style);
             this.saveToLocalStorage();
             this.render();
         }
@@ -137,7 +138,7 @@ export class SlateEngine {
 
         //delete key listener
         window.addEventListener("keydown", (e) => {
-            if ((e.key === "Delete" || e.key === "Backspace") && this.selectedShape) {
+            if ((e.key === "Delete" || e.key === "Backspace") && this.selectedShapes.length > 0) {
                 this.deleteSelectedShape();
             }
         });
@@ -185,23 +186,29 @@ export class SlateEngine {
         if (this.selectedTool === 'select') {
             const shape = this.getShapeAtPosition(x, y);
 
-            if (this.selectedShape) {
-                const handle = this.hitTestHandle(this.selectedShape, x, y);
+            if (this.selectedShapes.length === 1) {
+                const handle = this.hitTestHandle(this.selectedShapes[0]!, x, y);
                 if (handle) {
                     this.isResizing = true;
                     this.resizeHandle = handle;
-                    this.resizeOrigShape = JSON.parse(JSON.stringify(this.selectedShape));
+                    this.resizeOrigShape = JSON.parse(JSON.stringify(this.selectedShapes[0]));
                     this.history.push([...this.shapes]);
                     return;
                 }
             }
 
-            if (shape && shape.id === this.selectedShape?.id) {
+            if (shape && this.selectedShapes.some(s => s.id === shape.id)) {
                 this.isDragging = true;
                 this.dragStartPos = { x, y };
                 this.history.push([...this.shapes]);
             } else {
-                this.selectedShape = shape;
+                if (shape) {
+                    this.selectedShapes = [shape];
+                } else {
+                    this.isBoxSelecting = true;
+                    this.selectionBox = { x, y, w: 0, h: 0 };
+                    this.selectedShapes = [];
+                }
                 if (this.onSelectionChange) this.onSelectionChange(shape);
             }
 
@@ -214,7 +221,7 @@ export class SlateEngine {
         const hitShape = this.getShapeAtPosition(x, y);
         if (hitShape) {
             this.selectedTool = 'select';
-            this.selectedShape = hitShape;
+            this.selectedShapes = [hitShape];
             if (this.onSelectionChange) this.onSelectionChange(hitShape);
             if (this.onToolChange) this.onToolChange('select');
             this.canvas.style.cursor = 'default';
@@ -272,48 +279,34 @@ export class SlateEngine {
         }
 
         //resize shape via handle
-        if (this.isResizing && this.selectedShape) {
+        if (this.isResizing && this.selectedShapes.length === 1) {
             this.applyResize(x, y);
             this.render();
             return;
         }
 
-        if (this.isDragging && this.selectedShape) {
+        if (this.isBoxSelecting && this.selectionBox) {
+            this.selectionBox.w = x - this.selectionBox.x;
+            this.selectionBox.h = y - this.selectionBox.y;
+            this.render();
+            return;
+        }
+
+        if (this.isDragging && this.selectedShapes.length > 0) {
             const dx = x - this.dragStartPos.x;
             const dy = y - this.dragStartPos.y;
 
-            switch (this.selectedShape.type) {
-                case 'rect':
-                case 'diamond':
-                case 'circle':
-                case 'line':
-                case 'arrow':
-                    this.selectedShape.x += dx;
-                    this.selectedShape.y += dy;
-                    if ('endX' in this.selectedShape) {
-                        this.selectedShape.endX += dx;
-                        this.selectedShape.endY += dy;
-                    }
-                    break;
-                case 'pencil':
-                    this.selectedShape.x += dx;
-                    this.selectedShape.y += dy;
-                    this.selectedShape.points = this.selectedShape.points.map(p => ({
-                        x: p.x + dx,
-                        y: p.y + dy
-                    }));
-                    // Refresh cache after move
-                    this.pathCache.set(this.selectedShape, this.getSvgPathFromStroke(this.selectedShape.points));
-                    break;
-            }
+            this.selectedShapes.forEach(selectedShape => {
+                this.moveShape(selectedShape, dx, dy);
+            });
 
             this.dragStartPos = { x, y };
             this.render();
             return;
         }
 
-        if (this.selectedTool === 'select' && this.selectedShape) {
-            const handle = this.hitTestHandle(this.selectedShape, x, y);
+        if (this.selectedTool === 'select' && this.selectedShapes.length === 1) {
+            const handle = this.hitTestHandle(this.selectedShapes[0]!, x, y);
             if (handle) {
                 const cursorMap: Record<string, string> = {
                     tl: 'nwse-resize', br: 'nwse-resize',
@@ -328,6 +321,8 @@ export class SlateEngine {
             } else {
                 this.canvas.style.cursor = 'default';
             }
+        } else if (this.selectedTool === 'select' && this.selectedShapes.length > 1) {
+            this.canvas.style.cursor = 'default';
         }
 
         if (!this.isDrawing || !this.currentShape) return;
@@ -365,6 +360,38 @@ export class SlateEngine {
             return;
         }
 
+        //stop box selecting
+        if (this.isBoxSelecting && this.selectionBox) {
+            this.isBoxSelecting = false;
+
+            // find all shapes that intersect with the selection box
+            const { x, y, w, h } = this.selectionBox;
+            const minX = Math.min(x, x + w);
+            const maxX = Math.max(x, x + w);
+            const minY = Math.min(y, y + h);
+            const maxY = Math.max(y, y + h);
+
+            this.selectedShapes = this.shapes.filter(shape => {
+                const bounds = this.getShapeBounds(shape);
+                return (
+                    bounds.minX >= minX && bounds.maxX <= maxX &&
+                    bounds.minY >= minY && bounds.maxY <= maxY
+                ) || (
+                        // Also include shapes that partially intersect
+                        !(bounds.maxX < minX || bounds.minX > maxX || bounds.maxY < minY || bounds.minY > maxY)
+                    );
+            });
+
+            this.selectionBox = null;
+            if (this.onSelectionChange) {
+                // Return first shape or null for backward compatibility of simple cases,
+                // component will need to inspect engine.selectedShapes for full array
+                this.onSelectionChange(this.selectedShapes.length > 0 ? this.selectedShapes[0]! : null);
+            }
+            this.render();
+            return;
+        }
+
         //stop resizing
         if (this.isResizing) {
             this.isResizing = false;
@@ -382,7 +409,7 @@ export class SlateEngine {
             this.redoStack = [];
 
             //auto-select the just-drawn shape
-            this.selectedShape = drawn;
+            this.selectedShapes = [drawn];
             if (this.onSelectionChange) this.onSelectionChange(drawn);
             this.selectedTool = 'select';
             if (this.onToolChange) this.onToolChange('select');
@@ -402,19 +429,94 @@ export class SlateEngine {
     }
 
     private deleteSelectedShape() {
-        if (!this.selectedShape) return;
+        if (this.selectedShapes.length === 0) return;
 
         //save history
         this.history.push([...this.shapes]);
 
-        this.shapes = this.shapes.filter(s => s.id !== this.selectedShape?.id);
-        this.selectedShape = null;
+        const idsToDelete = new Set(this.selectedShapes.map(s => s.id));
+        this.shapes = this.shapes.filter(s => !idsToDelete.has(s.id));
+        this.selectedShapes = [];
         this.redoStack = [];
 
         this.saveToLocalStorage();
         this.render();
     }
 
+
+    private moveShape(shape: Shape, dx: number, dy: number) {
+        switch (shape.type) {
+            case 'rect':
+            case 'diamond':
+            case 'circle':
+            case 'line':
+            case 'arrow':
+                shape.x += dx;
+                shape.y += dy;
+                if ('endX' in shape) {
+                    shape.endX += dx;
+                    shape.endY += dy;
+                }
+                break;
+            case 'pencil':
+                shape.x += dx;
+                shape.y += dy;
+                shape.points = shape.points.map(p => ({
+                    x: p.x + dx,
+                    y: p.y + dy
+                }));
+                this.pathCache.set(shape, this.getSvgPathFromStroke(shape.points));
+                break;
+            case 'group':
+                shape.x += dx;
+                shape.y += dy;
+                shape.shapes.forEach(child => this.moveShape(child, dx, dy));
+                break;
+        }
+    }
+
+    private scaleShape(child: Shape, origChild: Shape, oMinX: number, oMinY: number, scaleX: number, scaleY: number, newGroupX: number, newGroupY: number) {
+        const relX = origChild.x - oMinX;
+        const relY = origChild.y - oMinY;
+
+        switch (child.type) {
+            case 'rect':
+            case 'diamond':
+                child.x = newGroupX + relX * scaleX;
+                child.y = newGroupY + relY * scaleY;
+                child.width = (origChild as any).width * scaleX;
+                child.height = (origChild as any).height * scaleY;
+                break;
+            case 'circle':
+                child.x = newGroupX + relX * scaleX;
+                child.y = newGroupY + relY * scaleY;
+                child.radius = (origChild as any).radius * Math.max(Math.abs(scaleX), Math.abs(scaleY));
+                break;
+            case 'line':
+            case 'arrow':
+                child.x = newGroupX + relX * scaleX;
+                child.y = newGroupY + relY * scaleY;
+                child.endX = newGroupX + ((origChild as any).endX - oMinX) * scaleX;
+                child.endY = newGroupY + ((origChild as any).endY - oMinY) * scaleY;
+                break;
+            case 'pencil':
+                child.points = (origChild as any).points.map((p: any) => ({
+                    x: newGroupX + (p.x - oMinX) * scaleX,
+                    y: newGroupY + (p.y - oMinY) * scaleY
+                }));
+                this.pathCache.set(child, this.getSvgPathFromStroke(child.points));
+                break;
+            case 'group':
+                child.x = newGroupX + relX * scaleX;
+                child.y = newGroupY + relY * scaleY;
+                child.width = (origChild as any).width * scaleX;
+                child.height = (origChild as any).height * scaleY;
+                child.shapes.forEach((gc, i) => {
+                    this.scaleShape(gc, (origChild as any).shapes[i]!, oMinX, oMinY, scaleX, scaleY, newGroupX, newGroupY);
+                });
+                break;
+        }
+    }
 
     private distanceToSegment(x: number, y: number, x1: number, y1: number, x2: number, y2: number) {
         const A = x - x1;
@@ -444,6 +546,48 @@ export class SlateEngine {
         const dx = x - xx;
         const dy = y - yy;
         return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    private getShapeBounds(shape: Shape) {
+        let minX = shape.x, maxX = shape.x, minY = shape.y, maxY = shape.y;
+
+        switch (shape.type) {
+            case 'rect':
+            case 'diamond':
+                maxX = shape.x + Math.max(0, shape.width);
+                maxY = shape.y + Math.max(0, shape.height);
+                minX = shape.x + Math.min(0, shape.width);
+                minY = shape.y + Math.min(0, shape.height);
+                break;
+            case 'circle':
+                minX = shape.x - shape.radius;
+                maxX = shape.x + shape.radius;
+                minY = shape.y - shape.radius;
+                maxY = shape.y + shape.radius;
+                break;
+            case 'line':
+            case 'arrow':
+                minX = Math.min(shape.x, shape.endX);
+                maxX = Math.max(shape.x, shape.endX);
+                minY = Math.min(shape.y, shape.endY);
+                maxY = Math.max(shape.y, shape.endY);
+                break;
+            case 'pencil':
+                const xs = shape.points.map(p => p.x);
+                const ys = shape.points.map(p => p.y);
+                minX = Math.min(...xs);
+                maxX = Math.max(...xs);
+                minY = Math.min(...ys);
+                maxY = Math.max(...ys);
+                break;
+            case 'group':
+                minX = shape.x;
+                minY = shape.y;
+                maxX = shape.x + shape.width;
+                maxY = shape.y + shape.height;
+                break;
+        }
+        return { minX, maxX, minY, maxY };
     }
 
     private getShapeAtPosition(x: number, y: number): Shape | null {
@@ -496,6 +640,12 @@ export class SlateEngine {
                     }
                     break;
                 }
+                case 'group': {
+                    if (x >= shape.x && x <= shape.x + shape.width && y >= shape.y && y <= shape.y + shape.height) {
+                        return shape;
+                    }
+                    break;
+                }
             }
         }
         return null;
@@ -528,8 +678,22 @@ export class SlateEngine {
         }
 
         // 6. Draw selection highlight on top of everything
-        if (this.selectedTool === 'select' && this.selectedShape) {
-            this.drawSelectionHighlight(this.selectedShape);
+        if (this.selectedTool === 'select') {
+            for (const shape of this.selectedShapes) {
+                this.drawSelectionHighlight(shape);
+            }
+        }
+
+        // 7. Draw selection box
+        if (this.isBoxSelecting && this.selectionBox) {
+            this.ctx.save();
+            const { x, y, w, h } = this.selectionBox;
+            this.ctx.fillStyle = 'rgba(99, 102, 241, 0.1)';
+            this.ctx.fillRect(x, y, w, h);
+            this.ctx.strokeStyle = 'rgba(99, 102, 241, 0.8)';
+            this.ctx.lineWidth = 1 / this.camera.z;
+            this.ctx.strokeRect(x, y, w, h);
+            this.ctx.restore();
         }
 
         this.ctx.restore();
@@ -581,6 +745,12 @@ export class SlateEngine {
                 bw = Math.max(...xs) - bx + padding;
                 bh = Math.max(...ys) - by + padding;
                 break;
+            case 'group':
+                bx = shape.x - padding;
+                by = shape.y - padding;
+                bw = shape.width + padding * 2;
+                bh = shape.height + padding * 2;
+                break;
         }
 
         this.ctx.strokeRect(bx, by, bw, bh);
@@ -619,6 +789,12 @@ export class SlateEngine {
         this.ctx.beginPath();
 
         switch (shape.type) {
+            case "group":
+                // draw all children independently
+                for (const child of shape.shapes) {
+                    this.draw(child);
+                }
+                break;
             case "rect":
                 this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
                 break;
@@ -807,51 +983,83 @@ export class SlateEngine {
     }
 
     public bringForward() {
-        if (!this.selectedShape) return;
-        const index = this.shapes.findIndex(s => s.id === this.selectedShape?.id);
-        if (index > -1 && index < this.shapes.length - 1) {
-            this.history.push([...this.shapes]);
-            const shape = this.shapes.splice(index, 1)[0]!;
-            this.shapes.splice(index + 1, 0, shape);
-            this.saveToLocalStorage();
-            this.render();
+        if (this.selectedShapes.length === 0) return;
+        this.history.push([...this.shapes]);
+        // Sort selected shapes by their current index to maintain relative order
+        const sortedSelected = [...this.selectedShapes].sort((a, b) =>
+            this.shapes.findIndex(s => s.id === b.id) - this.shapes.findIndex(s => s.id === a.id)
+        );
+
+        for (const shape of sortedSelected) {
+            const index = this.shapes.findIndex(s => s.id === shape.id);
+            if (index > -1 && index < this.shapes.length - 1) {
+                // Swap with the shape above it
+                const temp = this.shapes[index + 1]!;
+                this.shapes[index + 1] = shape;
+                this.shapes[index] = temp;
+            }
         }
+        this.saveToLocalStorage();
+        this.render();
     }
 
     public sendBackward() {
-        if (!this.selectedShape) return;
-        const index = this.shapes.findIndex(s => s.id === this.selectedShape?.id);
-        if (index > 0) {
-            this.history.push([...this.shapes]);
-            const shape = this.shapes.splice(index, 1)[0]!;
-            this.shapes.splice(index - 1, 0, shape);
-            this.saveToLocalStorage();
-            this.render();
+        if (this.selectedShapes.length === 0) return;
+        this.history.push([...this.shapes]);
+        // Sort selected shapes by their current index to maintain relative order (top to bottom)
+        const sortedSelected = [...this.selectedShapes].sort((a, b) =>
+            this.shapes.findIndex(s => s.id === a.id) - this.shapes.findIndex(s => s.id === b.id)
+        );
+
+        for (const shape of sortedSelected) {
+            const index = this.shapes.findIndex(s => s.id === shape.id);
+            if (index > 0) {
+                // Swap with the shape below it
+                const temp = this.shapes[index - 1]!;
+                this.shapes[index - 1] = shape;
+                this.shapes[index] = temp;
+            }
         }
+        this.saveToLocalStorage();
+        this.render();
     }
 
     public bringToFront() {
-        if (!this.selectedShape) return;
-        const index = this.shapes.findIndex(s => s.id === this.selectedShape?.id);
-        if (index > -1 && index < this.shapes.length - 1) {
-            this.history.push([...this.shapes]);
-            const shape = this.shapes.splice(index, 1)[0]!;
-            this.shapes.push(shape);
-            this.saveToLocalStorage();
-            this.render();
-        }
+        if (this.selectedShapes.length === 0) return;
+        this.history.push([...this.shapes]);
+
+        // Remove all selected shapes from current positions
+        const selectedIds = new Set(this.selectedShapes.map(s => s.id));
+        const unselectedShapes = this.shapes.filter(s => !selectedIds.has(s.id));
+
+        // Sort selected shapes to maintain relative original order
+        const sortedSelected = [...this.selectedShapes].sort((a, b) =>
+            this.shapes.findIndex(s => s.id === a.id) - this.shapes.findIndex(s => s.id === b.id)
+        );
+
+        // Append all selected shapes to the end
+        this.shapes = [...unselectedShapes, ...sortedSelected];
+        this.saveToLocalStorage();
+        this.render();
     }
 
     public sendToBack() {
-        if (!this.selectedShape) return;
-        const index = this.shapes.findIndex(s => s.id === this.selectedShape?.id);
-        if (index > 0) {
-            this.history.push([...this.shapes]);
-            const shape = this.shapes.splice(index, 1)[0]!;
-            this.shapes.unshift(shape);
-            this.saveToLocalStorage();
-            this.render();
-        }
+        if (this.selectedShapes.length === 0) return;
+        this.history.push([...this.shapes]);
+
+        // Remove all selected shapes from current positions
+        const selectedIds = new Set(this.selectedShapes.map(s => s.id));
+        const unselectedShapes = this.shapes.filter(s => !selectedIds.has(s.id));
+
+        // Sort selected shapes to maintain relative original order
+        const sortedSelected = [...this.selectedShapes].sort((a, b) =>
+            this.shapes.findIndex(s => s.id === a.id) - this.shapes.findIndex(s => s.id === b.id)
+        );
+
+        // Prepend all selected shapes to the beginning
+        this.shapes = [...sortedSelected, ...unselectedShapes];
+        this.saveToLocalStorage();
+        this.render();
     }
 
 
@@ -861,13 +1069,112 @@ export class SlateEngine {
         // Save history for undo
         this.history.push([...this.shapes]);
         this.shapes = [];
-        this.selectedShape = null;
+        this.selectedShapes = [];
         this.redoStack = [];
 
         this.saveToLocalStorage();
         this.render();
     }
 
+
+    public groupShapes() {
+        if (this.selectedShapes.length < 2) return;
+
+        this.history.push([...this.shapes]);
+
+        // Find bounding box for all selected
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const shape of this.selectedShapes) {
+            const bounds = this.getShapeBounds(shape);
+            minX = Math.min(minX, bounds.minX);
+            minY = Math.min(minY, bounds.minY);
+            maxX = Math.max(maxX, bounds.maxX);
+            maxY = Math.max(maxY, bounds.maxY);
+        }
+
+        const groupShape: Shape = {
+            id: generateId(),
+            type: 'group',
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+            shapes: [...this.selectedShapes],
+            strokeColor: 'transparent',
+            strokeWidth: 0,
+            strokeStyle: 'solid'
+        };
+
+        // remove grouped shapes from main shapes array
+        const idsToRemove = new Set(this.selectedShapes.map(s => s.id));
+        this.shapes = this.shapes.filter(s => !idsToRemove.has(s.id));
+
+        // add group shape
+        this.shapes.push(groupShape);
+        this.selectedShapes = [groupShape];
+
+        if (this.onSelectionChange) this.onSelectionChange(groupShape);
+
+        this.saveToLocalStorage();
+        this.render();
+    }
+
+    public ungroupShapes() {
+        if (this.selectedShapes.length !== 1 || this.selectedShapes[0]?.type !== 'group') return;
+
+        this.history.push([...this.shapes]);
+        const group = this.selectedShapes[0];
+
+        // Calculate offset since group might have been moved
+        const dx = group.x - Math.min(...group.shapes.map(s => this.getShapeBounds(s).minX));
+        const dy = group.y - Math.min(...group.shapes.map(s => this.getShapeBounds(s).minY));
+
+        const updatedChildren = group.shapes.map(s => {
+            const newShape = JSON.parse(JSON.stringify(s)); // quick deep clone
+            switch (newShape.type) {
+                case 'rect':
+                case 'diamond':
+                case 'circle':
+                case 'line':
+                case 'arrow':
+                case 'group':
+                    newShape.x += dx;
+                    newShape.y += dy;
+                    if ('endX' in newShape) {
+                        newShape.endX += dx;
+                        newShape.endY += dy;
+                    }
+                    if (newShape.type === 'group') {
+                        // recursive offset... skipping full deep recursive offset for simplicity now 
+                        // since nested grouping might need more complex logic.  
+                    }
+                    break;
+                case 'pencil':
+                    newShape.x += dx;
+                    newShape.y += dy;
+                    newShape.points = newShape.points.map((p: any) => ({
+                        x: p.x + dx,
+                        y: p.y + dy
+                    }));
+                    break;
+            }
+            return newShape;
+        });
+
+        // remove group shape
+        this.shapes = this.shapes.filter(s => s.id !== group.id);
+
+        // add children
+        this.shapes.push(...updatedChildren);
+        this.selectedShapes = updatedChildren;
+
+        if (this.onSelectionChange) {
+            this.onSelectionChange(this.selectedShapes[0] || null);
+        }
+
+        this.saveToLocalStorage();
+        this.render();
+    }
 
     //resize
     private getHandlePositions(shape: Shape): { id: string; x: number; y: number }[] {
@@ -909,6 +1216,19 @@ export class SlateEngine {
                 return [
                     { id: 'tl', x: minX, y: minY }, { id: 'tr', x: maxX, y: minY },
                     { id: 'br', x: maxX, y: maxY }, { id: 'bl', x: minX, y: maxY },
+                ];
+            }
+            case 'group': {
+                const minX = shape.x;
+                const minY = shape.y;
+                const maxX = shape.x + shape.width;
+                const maxY = shape.y + shape.height;
+                const mx = (minX + maxX) / 2, my = (minY + maxY) / 2;
+                return [
+                    { id: 'tl', x: minX, y: minY }, { id: 't', x: mx, y: minY }, { id: 'tr', x: maxX, y: minY },
+                    { id: 'r', x: maxX, y: my },
+                    { id: 'br', x: maxX, y: maxY }, { id: 'b', x: mx, y: maxY }, { id: 'bl', x: minX, y: maxY },
+                    { id: 'l', x: minX, y: my },
                 ];
             }
         }
@@ -973,16 +1293,20 @@ export class SlateEngine {
     }
 
     private applyResize(px: number, py: number) {
-        const shape = this.selectedShape;
+        const shape = this.selectedShapes[0];
         const orig = this.resizeOrigShape;
         const handle = this.resizeHandle;
         if (!shape || !orig || !handle) return;
 
-        if ((orig.type === 'rect' || orig.type === 'diamond') && (shape.type === 'rect' || shape.type === 'diamond')) {
+        if ((orig.type === 'rect' || orig.type === 'diamond' || orig.type === 'group') &&
+            (shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'group')) {
             const oMinX = Math.min(orig.x, orig.x + orig.width);
             const oMinY = Math.min(orig.y, orig.y + orig.height);
             const oMaxX = Math.max(orig.x, orig.x + orig.width);
             const oMaxY = Math.max(orig.y, orig.y + orig.height);
+            const origW = oMaxX - oMinX;
+            const origH = oMaxY - oMinY;
+
             let minX = oMinX, minY = oMinY, maxX = oMaxX, maxY = oMaxY;
             if (handle === 'tl' || handle === 'l' || handle === 'bl') minX = px;
             if (handle === 'tr' || handle === 'r' || handle === 'br') maxX = px;
@@ -990,6 +1314,15 @@ export class SlateEngine {
             if (handle === 'bl' || handle === 'b' || handle === 'br') maxY = py;
             shape.x = minX; shape.y = minY;
             shape.width = maxX - minX; shape.height = maxY - minY;
+
+            if (shape.type === 'group' && orig.type === 'group') {
+                const scaleX = shape.width / (origW || 1);
+                const scaleY = shape.height / (origH || 1);
+
+                shape.shapes.forEach((child, i) => {
+                    this.scaleShape(child, orig.shapes[i]!, oMinX, oMinY, scaleX, scaleY, shape.x, shape.y);
+                });
+            }
         }
 
         if (orig.type === 'circle' && shape.type === 'circle') {

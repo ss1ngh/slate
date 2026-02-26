@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { Pipette, GripHorizontal, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Pipette, GripHorizontal, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine, Group, Ungroup } from 'lucide-react';
 
 const STROKE_COLORS = [
     '#1e1e1e',
@@ -25,10 +25,14 @@ interface PropertiesProps {
     strokeStyle: 'solid' | 'dashed' | 'dotted';
     onStyleChange: (style: 'solid' | 'dashed' | 'dotted') => void;
     isSelected: boolean;
+    isMultipleSelected: boolean;
+    isGroupSelected: boolean;
     onBringForward: () => void;
     onSendBackward: () => void;
     onBringToFront: () => void;
     onSendToBack: () => void;
+    onGroupShapes: () => void;
+    onUngroupShapes: () => void;
 }
 
 export default function Properties({
@@ -39,10 +43,14 @@ export default function Properties({
     strokeStyle,
     onStyleChange,
     isSelected,
+    isMultipleSelected,
+    isGroupSelected,
     onBringForward,
     onSendBackward,
     onBringToFront,
-    onSendToBack
+    onSendToBack,
+    onGroupShapes,
+    onUngroupShapes
 }: PropertiesProps) {
 
     const [pos, setPos] = useState({ x: 24, y: 24 });
@@ -281,6 +289,34 @@ export default function Properties({
                                 <button onClick={handleSendToBack} className="p-1.5 hover:bg-black/5 rounded-lg transition-colors" title="Send to Back">
                                     <ArrowDownToLine size={16} className="text-slate-600" />
                                 </button>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {/* Grouping Actions */}
+                {(isMultipleSelected || isGroupSelected) && (
+                    <>
+                        <div style={dividerStyle} />
+                        <div className="space-y-2.5 relative">
+                            <span style={labelStyle}>Group Actions</span>
+                            <div className="flex gap-2 w-full">
+                                {isMultipleSelected && (
+                                    <button
+                                        onClick={() => { onGroupShapes(); showFeedback("Grouped"); }}
+                                        className="flex-1 flex justify-center items-center gap-1.5 py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-semibold transition-colors"
+                                    >
+                                        <Group size={14} /> Group
+                                    </button>
+                                )}
+                                {isGroupSelected && (
+                                    <button
+                                        onClick={() => { onUngroupShapes(); showFeedback("Ungrouped"); }}
+                                        className="flex-1 flex justify-center items-center gap-1.5 py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg text-xs font-semibold transition-colors"
+                                    >
+                                        <Ungroup size={14} /> Ungroup
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </>

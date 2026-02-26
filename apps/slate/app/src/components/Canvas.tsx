@@ -15,7 +15,7 @@ export default function Canvas() {
   const [strokeColor, setStrokeColor] = useState('#000000');
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [strokeStyle, setStrokeStyle] = useState<'solid' | 'dashed' | 'dotted'>('solid');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [zoom, setZoom] = useState(100);
 
   useEffect(() => {
@@ -24,7 +24,11 @@ export default function Canvas() {
 
       // Sync engine state to React
       engineRef.current.onZoomChange = (z: number) => setZoom(z);
-      engineRef.current.onSelectionChange = (s: any) => setSelectedId(s?.id || null);
+      engineRef.current.onSelectionChange = (s: any) => {
+        if (!engineRef.current) return;
+        const shapes = engineRef.current.selectedShapes || [];
+        setSelectedIds(shapes.map((shape: any) => shape.id));
+      };
       engineRef.current.onToolChange = (t: any) => setActiveTool(t);
     }
 
@@ -48,7 +52,7 @@ export default function Canvas() {
       engineRef.current.setTool(activeTool);
       // Clear selection if not in select tool
       if (activeTool !== 'select') {
-        setSelectedId(null);
+        setSelectedIds([]);
       }
     }
   }, [activeTool]);
@@ -97,6 +101,17 @@ export default function Canvas() {
         return;
       }
 
+      // Group/Ungroup shortcuts
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          engineRef.current.ungroupShapes();
+        } else {
+          engineRef.current.groupShapes();
+        }
+        return;
+      }
+
       //tool selection shortcuts
       switch (e.key.toLowerCase()) {
         case 'v': setActiveTool('select'); break;
@@ -132,11 +147,15 @@ export default function Canvas() {
         onWidthChange={setStrokeWidth}
         strokeStyle={strokeStyle}
         onStyleChange={setStrokeStyle}
-        isSelected={!!selectedId}
+        isSelected={selectedIds.length > 0}
+        isMultipleSelected={selectedIds.length > 1}
+        isGroupSelected={selectedIds.length === 1 && engineRef.current?.selectedShapes?.[0]?.type === 'group'}
         onBringForward={() => engineRef.current?.bringForward()}
         onSendBackward={() => engineRef.current?.sendBackward()}
         onBringToFront={() => engineRef.current?.bringToFront()}
         onSendToBack={() => engineRef.current?.sendToBack()}
+        onGroupShapes={() => engineRef.current?.groupShapes()}
+        onUngroupShapes={() => engineRef.current?.ungroupShapes()}
       />
 
       {/* Bottom Left: History Controls */}
@@ -187,10 +206,11 @@ export default function Canvas() {
         onMouseDown={(e) => {
           engineRef.current?.handleMouseDown(e);
           // Sync selection state if in select tool
-          if (activeTool === 'select') {
-            setSelectedId(engineRef.current?.selectedShape?.id || null);
+          if (activeTool === 'select' && engineRef.current) {
+            const shapes = engineRef.current.selectedShapes || [];
+            setSelectedIds(shapes.map((shape: any) => shape.id));
           } else {
-            setSelectedId(null);
+            setSelectedIds([]);
           }
         }}
         className="w-full h-full touch-none block"
