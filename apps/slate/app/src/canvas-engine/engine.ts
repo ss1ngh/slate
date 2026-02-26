@@ -13,10 +13,14 @@ export class SlateEngine {
 
     public onZoomChange?: (zoom: number) => void;
     public onSelectionChange?: (shape: Shape | null) => void;
+    public onToolChange?: (tool: ToolType) => void;
 
     private isDrawing: boolean = false;
     private isDragging: boolean = false;
     private isPanning: boolean = false;
+    private isResizing: boolean = false;
+    private resizeHandle: string | null = null;
+    private resizeOrigShape: Shape | null = null;
     private panStart = { x: 0, y: 0 };
     private dragStartPos = { x: 0, y: 0 };
 
@@ -158,7 +162,17 @@ export class SlateEngine {
         if (this.selectedTool === 'select') {
             const shape = this.getShapeAtPosition(x, y);
 
-            // If we click on an already selected shape, start dragging
+            if (this.selectedShape) {
+                const handle = this.hitTestHandle(this.selectedShape, x, y);
+                if (handle) {
+                    this.isResizing = true;
+                    this.resizeHandle = handle;
+                    this.resizeOrigShape = JSON.parse(JSON.stringify(this.selectedShape));
+                    this.history.push([...this.shapes]);
+                    return;
+                }
+            }
+
             if (shape && shape.id === this.selectedShape?.id) {
                 this.isDragging = true;
                 this.dragStartPos = { x, y };
@@ -168,6 +182,19 @@ export class SlateEngine {
                 if (this.onSelectionChange) this.onSelectionChange(shape);
             }
 
+            this.render();
+            return;
+        }
+
+        //smart click-to-select: if clicking an existing shape while in any drawing tool,
+        //auto-switch to select and show its handles instead of starting a new draw.
+        const hitShape = this.getShapeAtPosition(x, y);
+        if (hitShape) {
+            this.selectedTool = 'select';
+            this.selectedShape = hitShape;
+            if (this.onSelectionChange) this.onSelectionChange(hitShape);
+            if (this.onToolChange) this.onToolChange('select');
+            this.canvas.style.cursor = 'default';
             this.render();
             return;
         }
@@ -221,6 +248,13 @@ export class SlateEngine {
             return;
         }
 
+        //resize shape via handle
+        if (this.isResizing && this.selectedShape) {
+            this.applyResize(x, y);
+            this.render();
+            return;
+        }
+
         if (this.isDragging && this.selectedShape) {
             const dx = x - this.dragStartPos.x;
             const dy = y - this.dragStartPos.y;
@@ -255,6 +289,24 @@ export class SlateEngine {
             return;
         }
 
+        if (this.selectedTool === 'select' && this.selectedShape) {
+            const handle = this.hitTestHandle(this.selectedShape, x, y);
+            if (handle) {
+                const cursorMap: Record<string, string> = {
+                    tl: 'nwse-resize', br: 'nwse-resize',
+                    tr: 'nesw-resize', bl: 'nesw-resize',
+                    t: 'ns-resize', b: 'ns-resize',
+                    l: 'ew-resize', r: 'ew-resize',
+                    start: 'crosshair', end: 'crosshair',
+                    n: 'ns-resize', s: 'ns-resize',
+                    e: 'ew-resize', w: 'ew-resize',
+                };
+                this.canvas.style.cursor = cursorMap[handle] || 'crosshair';
+            } else {
+                this.canvas.style.cursor = 'default';
+            }
+        }
+
         if (!this.isDrawing || !this.currentShape) return;
 
         switch (this.currentShape.type) {
@@ -283,24 +335,38 @@ export class SlateEngine {
     }
 
     private handleMouseUp() {
-        // Stop panning
+        //stop panning
         if (this.isPanning) {
             this.isPanning = false;
             this.canvas.style.cursor = 'grab';
             return;
         }
 
+        //stop resizing
+        if (this.isResizing) {
+            this.isResizing = false;
+            this.resizeHandle = null;
+            this.resizeOrigShape = null;
+            this.saveToLocalStorage();
+            this.render();
+            return;
+        }
+
         if (this.currentShape) {
-            //push current state of canvas before adding new shape
+            const drawn = this.currentShape;
             this.history.push([...this.shapes]);
-
-            //add new shape
-            this.shapes.push(this.currentShape)
-
+            this.shapes.push(drawn);
             this.redoStack = [];
 
+            //auto-select the just-drawn shape
+            this.selectedShape = drawn;
+            if (this.onSelectionChange) this.onSelectionChange(drawn);
+            this.selectedTool = 'select';
+            if (this.onToolChange) this.onToolChange('select');
+            this.canvas.style.cursor = 'default';
+
             this.saveToLocalStorage();
-        };
+        }
 
         if (this.isDragging) {
             this.saveToLocalStorage();
@@ -448,9 +514,12 @@ export class SlateEngine {
 
     private drawSelectionHighlight(shape: Shape): void {
         this.ctx.save();
-        this.ctx.strokeStyle = "#3b82f6"; // Blue-500
-        this.ctx.lineWidth = 1.5;
-        this.ctx.setLineDash([5, 5]);
+        const pz = this.camera.z;
+
+        //bounding box
+        this.ctx.strokeStyle = "#93c5fd";
+        this.ctx.lineWidth = 1.5 / pz;
+        this.ctx.setLineDash([5 / pz, 4 / pz]);
 
         const padding = 8;
         let bx = 0, by = 0, bw = 0, bh = 0;
@@ -492,6 +561,22 @@ export class SlateEngine {
         }
 
         this.ctx.strokeRect(bx, by, bw, bh);
+
+        //draw resize handles
+        this.ctx.setLineDash([]);
+        this.ctx.strokeStyle = '#93c5fd';
+        this.ctx.fillStyle = '#eff6ff';
+        this.ctx.lineWidth = 1.5 / pz;
+        const hs = 5 / pz; // half-size of handle square in world units
+
+        const handles = this.getHandlePositions(shape);
+        for (const h of handles) {
+            this.ctx.beginPath();
+            this.ctx.rect(h.x - hs, h.y - hs, hs * 2, hs * 2);
+            this.ctx.fill();
+            this.ctx.stroke();
+        }
+
         this.ctx.restore();
     }
 
@@ -698,6 +783,7 @@ export class SlateEngine {
         this.render();
     }
 
+
     public clearCanvas() {
         if (this.shapes.length === 0) return;
 
@@ -709,5 +795,158 @@ export class SlateEngine {
 
         this.saveToLocalStorage();
         this.render();
+    }
+
+    // ── Resize helpers ────────────────────────────────────────────────────
+
+    private getHandlePositions(shape: Shape): { id: string; x: number; y: number }[] {
+        switch (shape.type) {
+            case 'rect':
+            case 'diamond': {
+                const minX = Math.min(shape.x, shape.x + shape.width);
+                const minY = Math.min(shape.y, shape.y + shape.height);
+                const maxX = Math.max(shape.x, shape.x + shape.width);
+                const maxY = Math.max(shape.y, shape.y + shape.height);
+                const mx = (minX + maxX) / 2, my = (minY + maxY) / 2;
+                return [
+                    { id: 'tl', x: minX, y: minY }, { id: 't', x: mx, y: minY }, { id: 'tr', x: maxX, y: minY },
+                    { id: 'r', x: maxX, y: my },
+                    { id: 'br', x: maxX, y: maxY }, { id: 'b', x: mx, y: maxY }, { id: 'bl', x: minX, y: maxY },
+                    { id: 'l', x: minX, y: my },
+                ];
+            }
+            case 'circle': {
+                const { x: cx, y: cy, radius: r } = shape;
+                return [
+                    { id: 'n', x: cx, y: cy - r },
+                    { id: 'e', x: cx + r, y: cy },
+                    { id: 's', x: cx, y: cy + r },
+                    { id: 'w', x: cx - r, y: cy },
+                ];
+            }
+            case 'line':
+            case 'arrow':
+                return [
+                    { id: 'start', x: shape.x, y: shape.y },
+                    { id: 'end', x: shape.endX, y: shape.endY },
+                ];
+            case 'pencil': {
+                const xs = shape.points.map(p => p.x);
+                const ys = shape.points.map(p => p.y);
+                const minX = Math.min(...xs), maxX = Math.max(...xs);
+                const minY = Math.min(...ys), maxY = Math.max(...ys);
+                return [
+                    { id: 'tl', x: minX, y: minY }, { id: 'tr', x: maxX, y: minY },
+                    { id: 'br', x: maxX, y: maxY }, { id: 'bl', x: minX, y: maxY },
+                ];
+            }
+        }
+    }
+
+    private hitTestHandle(shape: Shape, px: number, py: number): string | null {
+        const HIT = 9 / this.camera.z;
+
+        // 1. Small handle squares (high priority)
+        for (const h of this.getHandlePositions(shape)) {
+            if (Math.abs(px - h.x) <= HIT && Math.abs(py - h.y) <= HIT) return h.id;
+        }
+
+        // 2. Proximity to the full selection bounding box border
+        // (skipped for line/arrow — they only have endpoint handles)
+        if (shape.type === 'line' || shape.type === 'arrow') return null;
+
+        const pad = 8;
+        let bx: number, by: number, bx2: number, by2: number;
+        switch (shape.type) {
+            case 'rect': case 'diamond': {
+                bx = Math.min(shape.x, shape.x + shape.width) - pad;
+                by = Math.min(shape.y, shape.y + shape.height) - pad;
+                bx2 = Math.max(shape.x, shape.x + shape.width) + pad;
+                by2 = Math.max(shape.y, shape.y + shape.height) + pad;
+                break;
+            }
+            case 'circle': {
+                bx = shape.x - shape.radius - pad; by = shape.y - shape.radius - pad;
+                bx2 = shape.x + shape.radius + pad; by2 = shape.y + shape.radius + pad;
+                break;
+            }
+            case 'pencil': {
+                const xs = shape.points.map(p => p.x), ys = shape.points.map(p => p.y);
+                bx = Math.min(...xs) - pad; by = Math.min(...ys) - pad;
+                bx2 = Math.max(...xs) + pad; by2 = Math.max(...ys) + pad;
+                break;
+            }
+            default: return null;
+        }
+
+        const EDGE = 7 / this.camera.z;
+        const nearL = Math.abs(px - bx) <= EDGE;
+        const nearR = Math.abs(px - bx2) <= EDGE;
+        const nearT = Math.abs(py - by) <= EDGE;
+        const nearB = Math.abs(py - by2) <= EDGE;
+        const inX = px >= bx - EDGE && px <= bx2 + EDGE;
+        const inY = py >= by - EDGE && py <= by2 + EDGE;
+
+        // Corners first
+        if (nearT && nearL) return 'tl';
+        if (nearT && nearR) return 'tr';
+        if (nearB && nearL) return 'bl';
+        if (nearB && nearR) return 'br';
+        // Edges — only if within the bbox span
+        if (nearT && inX) return 't';
+        if (nearB && inX) return 'b';
+        if (nearL && inY) return 'l';
+        if (nearR && inY) return 'r';
+
+        return null;
+    }
+
+    private applyResize(px: number, py: number) {
+        const shape = this.selectedShape;
+        const orig = this.resizeOrigShape;
+        const handle = this.resizeHandle;
+        if (!shape || !orig || !handle) return;
+
+        if ((orig.type === 'rect' || orig.type === 'diamond') && (shape.type === 'rect' || shape.type === 'diamond')) {
+            const oMinX = Math.min(orig.x, orig.x + orig.width);
+            const oMinY = Math.min(orig.y, orig.y + orig.height);
+            const oMaxX = Math.max(orig.x, orig.x + orig.width);
+            const oMaxY = Math.max(orig.y, orig.y + orig.height);
+            let minX = oMinX, minY = oMinY, maxX = oMaxX, maxY = oMaxY;
+            if (handle === 'tl' || handle === 'l' || handle === 'bl') minX = px;
+            if (handle === 'tr' || handle === 'r' || handle === 'br') maxX = px;
+            if (handle === 'tl' || handle === 't' || handle === 'tr') minY = py;
+            if (handle === 'bl' || handle === 'b' || handle === 'br') maxY = py;
+            shape.x = minX; shape.y = minY;
+            shape.width = maxX - minX; shape.height = maxY - minY;
+        }
+
+        if (orig.type === 'circle' && shape.type === 'circle') {
+            if (handle === 'e' || handle === 'w') shape.radius = Math.abs(px - orig.x);
+            if (handle === 'n' || handle === 's') shape.radius = Math.abs(py - orig.y);
+        }
+
+        if ((orig.type === 'line' || orig.type === 'arrow') && (shape.type === 'line' || shape.type === 'arrow')) {
+            if (handle === 'start') { shape.x = px; shape.y = py; }
+            if (handle === 'end') { shape.endX = px; shape.endY = py; }
+        }
+
+        if (orig.type === 'pencil' && shape.type === 'pencil') {
+            const oXs = orig.points.map(p => p.x), oYs = orig.points.map(p => p.y);
+            const oMinX = Math.min(...oXs), oMaxX = Math.max(...oXs);
+            const oMinY = Math.min(...oYs), oMaxY = Math.max(...oYs);
+            let minX = oMinX, minY = oMinY, maxX = oMaxX, maxY = oMaxY;
+            if (handle === 'tl' || handle === 'bl') minX = px;
+            if (handle === 'tr' || handle === 'br') maxX = px;
+            if (handle === 'tl' || handle === 'tr') minY = py;
+            if (handle === 'bl' || handle === 'br') maxY = py;
+            const sx = (oMaxX - oMinX) > 0 ? (maxX - minX) / (oMaxX - oMinX) : 1;
+            const sy = (oMaxY - oMinY) > 0 ? (maxY - minY) / (oMaxY - oMinY) : 1;
+            shape.points = orig.points.map(p => ({
+                x: minX + (p.x - oMinX) * sx,
+                y: minY + (p.y - oMinY) * sy,
+            }));
+            this.pathCache.set(shape, this.getSvgPathFromStroke(shape.points));
+        }
     }
 }

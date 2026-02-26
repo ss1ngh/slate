@@ -25,6 +25,7 @@ export default function Canvas() {
       // Sync engine state to React
       engineRef.current.onZoomChange = (z: number) => setZoom(z);
       engineRef.current.onSelectionChange = (s: any) => setSelectedId(s?.id || null);
+      engineRef.current.onToolChange = (t: any) => setActiveTool(t);
     }
 
     const handleResize = () => {

@@ -209,12 +209,12 @@ export default function Properties({
 
                 {/* stroke style */}
                 <div className="space-y-2.5">
-                    <span style={labelStyle}>Stroke Style</span>
+                    <span style={labelStyle}>Style</span>
                     <div style={segmentTrack}>
                         {([
                             { value: 'solid', dasharray: 'none', title: 'Solid' },
                             { value: 'dashed', dasharray: '4 3', title: 'Dashed' },
-                            { value: 'dotted', dasharray: '1.3 3', title: 'Dotted' },
+                            { value: 'dotted', dasharray: '1.5 3', title: 'Dotted' },
                         ] as { value: 'solid' | 'dashed' | 'dotted'; dasharray: string; title: string }[]).map(({ value, dasharray, title }) => (
                             <button
                                 key={value}
