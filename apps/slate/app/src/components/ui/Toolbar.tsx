@@ -11,6 +11,7 @@ import {
   Diamond,
   Eraser,
   Image as ImageIcon,
+  Type
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -28,6 +29,7 @@ const tools: { type: ShapeType; icon: React.ReactNode; label: string }[] = [
   { type: 'line', icon: <Minus size={16} />, label: 'Line (L)' },
   { type: 'arrow', icon: <ArrowUpRight size={16} />, label: 'Arrow (A)' },
   { type: 'image', icon: <ImageIcon size={16} />, label: 'Image (I)' },
+  { type: 'text', icon: <Type size={16} />, label: 'Text (T)' },
   { type: 'eraser', icon: <Eraser size={16} />, label: 'Eraser (E)' },
 ];
 

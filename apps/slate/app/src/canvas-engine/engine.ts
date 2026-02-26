@@ -14,7 +14,6 @@ export class SlateEngine {
     public onZoomChange?: (zoom: number) => void;
     public onSelectionChange?: (shape: Shape | null) => void;
     public onToolChange?: (tool: ToolType) => void;
-
     private isDrawing: boolean = false;
     private isDragging: boolean = false;
     private isPanning: boolean = false;
@@ -137,7 +136,6 @@ export class SlateEngine {
             this.render();
         }
     }
-
     private attachListeners() {
         this.canvas.addEventListener("mousedown", this.handleMouseDown.bind(this));
         window.addEventListener("mousemove", this.handleMouseMove.bind(this));
@@ -164,6 +162,91 @@ export class SlateEngine {
             y: (screenY - this.camera.y) / this.camera.z,
         };
 
+    }
+
+    private spawnTextOverlay(worldX: number, worldY: number, id: string, screenX: number, screenY: number) {
+        const textarea = document.createElement('textarea');
+        textarea.style.position = 'absolute';
+        textarea.style.left = `${screenX}px`;
+        textarea.style.top = `${screenY}px`;
+        textarea.style.margin = '0';
+        textarea.style.padding = '0';
+        textarea.style.border = '1px dashed #6366f1';
+        textarea.style.outline = 'none';
+        textarea.style.resize = 'none';
+        textarea.style.overflow = 'hidden';
+        textarea.style.background = 'transparent';
+
+        const fontSize = 24;
+        textarea.style.font = `${fontSize * this.camera.z}px sans-serif`;
+        textarea.style.color = this.strokeColor;
+        textarea.style.lineHeight = '1.2';
+        textarea.style.whiteSpace = 'pre';
+        textarea.style.zIndex = '1000';
+
+        const adjustSize = () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+            textarea.style.width = Math.max(100, textarea.value.length * (15 * this.camera.z)) + 'px';
+        };
+
+        textarea.addEventListener('input', adjustSize);
+
+        const commitText = () => {
+            const text = textarea.value.trim();
+            if (text) {
+                const newTextShape: any = {
+                    id,
+                    type: 'text',
+                    x: worldX,
+                    y: worldY,
+                    text: textarea.value, // keep raw value with newlines
+                    fontSize: 24,
+                    strokeColor: this.strokeColor,
+                    strokeWidth: this.strokeWidth,
+                    strokeStyle: this.strokeStyle
+                };
+
+                this.ctx.font = `24px sans-serif`;
+                let maxWidth = 0;
+                const lines = newTextShape.text.split('\n');
+                for (const line of lines) {
+                    const metrics = this.ctx.measureText(line);
+                    if (metrics.width > maxWidth) maxWidth = metrics.width;
+                }
+                newTextShape.width = maxWidth;
+                newTextShape.height = 24 * 1.2 * lines.length;
+
+                this.history.push([...this.shapes]);
+                this.shapes.push(newTextShape);
+                this.selectedShapes = [newTextShape];
+                if (this.onSelectionChange) this.onSelectionChange(newTextShape);
+                this.redoStack = [];
+                this.saveToLocalStorage();
+                this.render();
+            }
+            if (textarea.parentNode) {
+                textarea.parentNode.removeChild(textarea);
+            }
+        };
+
+        textarea.addEventListener('blur', commitText);
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                textarea.value = '';
+                textarea.blur();
+            } else if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                textarea.blur();
+            }
+        });
+
+        this.canvas.parentElement?.appendChild(textarea);
+
+        setTimeout(() => {
+            textarea.focus();
+            adjustSize();
+        }, 10);
     }
 
     private handleMouseDown(e: MouseEvent) {
@@ -227,6 +310,14 @@ export class SlateEngine {
             };
 
             this.render();
+            return;
+        }
+
+        if (this.selectedTool === 'text') {
+            const id = generateId();
+            this.spawnTextOverlay(x, y, id, e.clientX, e.clientY);
+            this.selectedTool = 'select';
+            if (this.onToolChange) this.onToolChange('select');
             return;
         }
 
@@ -497,6 +588,7 @@ export class SlateEngine {
             case 'image':
             case 'diamond':
             case 'circle':
+            case 'text':
             case 'line':
             case 'arrow':
                 shape.x += dx;
@@ -535,6 +627,13 @@ export class SlateEngine {
                 child.y = newGroupY + relY * scaleY;
                 child.width = (origChild as any).width * scaleX;
                 child.height = (origChild as any).height * scaleY;
+                break;
+            case 'text':
+                child.x = newGroupX + relX * scaleX;
+                child.y = newGroupY + relY * scaleY;
+                child.width = (origChild as any).width * Math.abs(scaleX);
+                child.height = (origChild as any).height * Math.abs(scaleY);
+                child.fontSize = (origChild as any).fontSize * Math.abs(scaleY);
                 break;
             case 'circle':
                 child.x = newGroupX + relX * scaleX;
@@ -604,10 +703,11 @@ export class SlateEngine {
             case 'rect':
             case 'image':
             case 'diamond':
-                maxX = shape.x + Math.max(0, shape.width);
-                maxY = shape.y + Math.max(0, shape.height);
-                minX = shape.x + Math.min(0, shape.width);
-                minY = shape.y + Math.min(0, shape.height);
+            case 'text':
+                maxX = shape.x + Math.max(0, shape.width || 0);
+                maxY = shape.y + Math.max(0, shape.height || 0);
+                minX = shape.x + Math.min(0, shape.width || 0);
+                minY = shape.y + Math.min(0, shape.height || 0);
                 break;
             case 'circle':
                 minX = shape.x - shape.radius;
@@ -649,11 +749,14 @@ export class SlateEngine {
 
             switch (shape.type) {
                 case 'rect':
-                case 'image': {
-                    const minX = Math.min(shape.x, shape.x + shape.width);
-                    const maxX = Math.max(shape.x, shape.x + shape.width);
-                    const minY = Math.min(shape.y, shape.y + shape.height);
-                    const maxY = Math.max(shape.y, shape.y + shape.height);
+                case 'image':
+                case 'text': {
+                    const w = shape.width || 0;
+                    const h = shape.height || 0;
+                    const minX = Math.min(shape.x, shape.x + w);
+                    const maxX = Math.max(shape.x, shape.x + w);
+                    const minY = Math.min(shape.y, shape.y + h);
+                    const maxY = Math.max(shape.y, shape.y + h);
                     if (x >= minX && x <= maxX && y >= minY && y <= maxY) return shape;
                     break;
                 }
@@ -765,10 +868,11 @@ export class SlateEngine {
         switch (shape.type) {
             case 'rect':
             case 'image':
-                bx = Math.min(shape.x, shape.x + shape.width) - padding;
-                by = Math.min(shape.y, shape.y + shape.height) - padding;
-                bw = Math.abs(shape.width) + padding * 2;
-                bh = Math.abs(shape.height) + padding * 2;
+            case 'text':
+                bx = Math.min(shape.x, shape.x + (shape.width || 0)) - padding;
+                by = Math.min(shape.y, shape.y + (shape.height || 0)) - padding;
+                bw = Math.abs(shape.width || 0) + padding * 2;
+                bh = Math.abs(shape.height || 0) + padding * 2;
                 break;
             case 'diamond':
                 bx = Math.min(shape.x, shape.x + shape.width) - padding;
@@ -845,6 +949,18 @@ export class SlateEngine {
                 // draw all children independently
                 for (const child of shape.shapes) {
                     this.draw(child);
+                }
+                break;
+            case "text":
+                this.ctx.fillStyle = shape.strokeColor;
+                this.ctx.font = `${shape.fontSize}px sans-serif`;
+                this.ctx.textBaseline = 'top';
+
+                const lines = shape.text.split('\n');
+                let curY = shape.y;
+                for (let line of lines) {
+                    this.ctx.fillText(line, shape.x, curY);
+                    curY += shape.fontSize * 1.2;
                 }
                 break;
             case "rect":
@@ -1004,14 +1120,18 @@ export class SlateEngine {
         localStorage.setItem('slate_shapes', JSON.stringify(this.shapes));
     }
 
-
     private loadFromLocalStorage() {
         const saved = localStorage.getItem('slate_shapes');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                // Migrate old shapes that predate strokeStyle field
-                this.shapes = parsed.map((s: any) => ({
+
+                let shapesArray = parsed;
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.shapes) {
+                    shapesArray = parsed.shapes;
+                }
+
+                this.shapes = shapesArray.map((s: any) => ({
                     ...s,
                     strokeStyle: s.strokeStyle ?? 'solid',
                 }));
@@ -1368,12 +1488,12 @@ export class SlateEngine {
         const handle = this.resizeHandle;
         if (!shape || !orig || !handle) return;
 
-        if ((orig.type === 'rect' || orig.type === 'diamond' || orig.type === 'group' || orig.type === 'image') &&
-            (shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'group' || shape.type === 'image')) {
-            const oMinX = Math.min(orig.x, orig.x + orig.width);
-            const oMinY = Math.min(orig.y, orig.y + orig.height);
-            const oMaxX = Math.max(orig.x, orig.x + orig.width);
-            const oMaxY = Math.max(orig.y, orig.y + orig.height);
+        if ((orig.type === 'rect' || orig.type === 'diamond' || orig.type === 'group' || orig.type === 'image' || orig.type === 'text') &&
+            (shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'group' || shape.type === 'image' || shape.type === 'text')) {
+            const oMinX = Math.min(orig.x, orig.x + (orig.width || 0));
+            const oMinY = Math.min(orig.y, orig.y + (orig.height || 0));
+            const oMaxX = Math.max(orig.x, orig.x + (orig.width || 0));
+            const oMaxY = Math.max(orig.y, orig.y + (orig.height || 0));
             const origW = oMaxX - oMinX;
             const origH = oMaxY - oMinY;
 
@@ -1392,6 +1512,10 @@ export class SlateEngine {
                 shape.shapes.forEach((child, i) => {
                     this.scaleShape(child, orig.shapes[i]!, oMinX, oMinY, scaleX, scaleY, shape.x, shape.y);
                 });
+            }
+
+            if (shape.type === 'text' && orig.type === 'text') {
+                shape.fontSize = (orig as any).fontSize * Math.abs((shape.height || 1) / (origH || 1));
             }
         }
 
