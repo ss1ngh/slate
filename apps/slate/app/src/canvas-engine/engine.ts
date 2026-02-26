@@ -929,81 +929,83 @@ export class SlateEngine {
         this.ctx.restore();
     }
 
-    private draw(shape: Shape): void {
-        this.ctx.strokeStyle = shape.strokeColor;
-        this.ctx.lineWidth = shape.strokeWidth;
-        this.ctx.lineCap = "round";
-        this.ctx.lineJoin = "round";
+    private draw(shape: Shape, context: CanvasRenderingContext2D = this.ctx): void {
+        context.strokeStyle = shape.strokeColor;
+        context.lineWidth = shape.strokeWidth;
+        context.lineCap = "round";
+        context.lineJoin = "round";
 
         // Apply dash pattern based on strokeStyle
         const dash =
             shape.strokeStyle === 'dashed' ? [shape.strokeWidth * 4, shape.strokeWidth * 2.5] :
                 shape.strokeStyle === 'dotted' ? [2, shape.strokeWidth * 2.5] :
                     [];
-        this.ctx.setLineDash(dash);
+        context.setLineDash(dash);
 
-        this.ctx.beginPath();
+        context.beginPath();
 
         switch (shape.type) {
             case "group":
                 // draw all children independently
                 for (const child of shape.shapes) {
-                    this.draw(child);
+                    this.draw(child, context);
                 }
                 break;
             case "text":
-                this.ctx.fillStyle = shape.strokeColor;
-                this.ctx.font = `${shape.fontSize}px sans-serif`;
-                this.ctx.textBaseline = 'top';
+                context.fillStyle = shape.strokeColor;
+                context.font = `${shape.fontSize}px sans-serif`;
+                context.textBaseline = 'top';
 
                 const lines = shape.text.split('\n');
                 let curY = shape.y;
                 for (let line of lines) {
-                    this.ctx.fillText(line, shape.x, curY);
+                    context.fillText(line, shape.x, curY);
                     curY += shape.fontSize * 1.2;
                 }
                 break;
             case "rect":
-                this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+                context.strokeRect(shape.x, shape.y, shape.width, shape.height);
                 break;
             case "image":
                 if (shape.element && shape.element.complete) {
-                    this.ctx.drawImage(shape.element, shape.x, shape.y, shape.width, shape.height);
+                    context.drawImage(shape.element, shape.x, shape.y, shape.width, shape.height);
                 } else if (!shape.element) {
                     const img = new Image();
                     img.src = shape.src;
                     shape.element = img;
-                    img.onload = () => this.render();
+                    img.onload = () => {
+                        if (context === this.ctx) this.render();
+                    };
                 } else {
-                    this.ctx.fillStyle = '#f1f5f9';
-                    this.ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+                    context.fillStyle = '#f1f5f9';
+                    context.fillRect(shape.x, shape.y, shape.width, shape.height);
                 }
                 if (shape.strokeWidth > 0 && shape.strokeColor !== 'transparent') {
-                    this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+                    context.strokeRect(shape.x, shape.y, shape.width, shape.height);
                 }
                 break;
             case "diamond": {
                 const cx = shape.x + shape.width / 2;
                 const cy = shape.y + shape.height / 2;
-                this.ctx.moveTo(cx, shape.y);                          // top
-                this.ctx.lineTo(shape.x + shape.width, cy);            // right
-                this.ctx.lineTo(cx, shape.y + shape.height);           // bottom
-                this.ctx.lineTo(shape.x, cy);                          // left
-                this.ctx.closePath();
-                this.ctx.stroke();
+                context.moveTo(cx, shape.y);                          // top
+                context.lineTo(shape.x + shape.width, cy);            // right
+                context.lineTo(cx, shape.y + shape.height);           // bottom
+                context.lineTo(shape.x, cy);                          // left
+                context.closePath();
+                context.stroke();
                 break;
             }
             case "circle":
-                this.ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
-                this.ctx.stroke();
+                context.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
+                context.stroke();
                 break;
             case "line":
-                this.ctx.moveTo(shape.x, shape.y);
-                this.ctx.lineTo(shape.endX, shape.endY);
-                this.ctx.stroke();
+                context.moveTo(shape.x, shape.y);
+                context.lineTo(shape.endX, shape.endY);
+                context.stroke();
                 break;
             case "arrow":
-                this.drawArrow(shape.x, shape.y, shape.endX, shape.endY);
+                this.drawArrow(shape.x, shape.y, shape.endX, shape.endY, context);
                 break;
             case "pencil": {
                 if (shape.points.length < 2) break;
@@ -1015,41 +1017,41 @@ export class SlateEngine {
                     this.pathCache.set(shape, strokePath);
                 }
 
-                this.ctx.fillStyle = shape.strokeColor;
-                this.ctx.fill(strokePath);
+                context.fillStyle = shape.strokeColor;
+                context.fill(strokePath);
                 break;
             }
         }
     }
 
-    private drawArrow(x1: number, y1: number, x2: number, y2: number) {
+    private drawArrow(x1: number, y1: number, x2: number, y2: number, context: CanvasRenderingContext2D = this.ctx) {
         const headLength = 20;
         const angle = Math.atan2(y2 - y1, x2 - x1);
 
         //draw main line
-        this.ctx.beginPath();
-        this.ctx.moveTo(x1, y1);
-        this.ctx.lineTo(x2, y2);
-        this.ctx.stroke();
+        context.beginPath();
+        context.moveTo(x1, y1);
+        context.lineTo(x2, y2);
+        context.stroke();
 
         //draw arrowhead
-        this.ctx.beginPath();
-        this.ctx.moveTo(x2, y2);
+        context.beginPath();
+        context.moveTo(x2, y2);
 
         //left wing
-        this.ctx.lineTo(
+        context.lineTo(
             x2 - headLength * Math.cos(angle - Math.PI / 6),
             y2 - headLength * Math.sin(angle - Math.PI / 6)
         );
 
         //right wing
-        this.ctx.moveTo(x2, y2);
-        this.ctx.lineTo(
+        context.moveTo(x2, y2);
+        context.lineTo(
             x2 - headLength * Math.cos(angle + Math.PI / 6),
             y2 - headLength * Math.sin(angle + Math.PI / 6)
         );
 
-        this.ctx.stroke();
+        context.stroke();
     }
 
     //convert stroke points into a Path2D object for smoother lines
@@ -1142,11 +1144,57 @@ export class SlateEngine {
         }
     }
 
-    public exportDrawing() {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.shapes));
+    public exportImage() {
+        if (this.shapes.length === 0) return;
+
+        // Calculate global bounding box
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const shape of this.shapes) {
+            const bounds = this.getShapeBounds(shape);
+            if (bounds.minX < minX) minX = bounds.minX;
+            if (bounds.minY < minY) minY = bounds.minY;
+            if (bounds.maxX > maxX) maxX = bounds.maxX;
+            if (bounds.maxY > maxY) maxY = bounds.maxY;
+        }
+
+        // Add padding
+        const padding = 40;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+
+        const width = maxX - minX;
+        const height = maxY - minY;
+
+        // Use a high scale for high resolution output
+        const exportScale = 3;
+
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = width * exportScale;
+        offscreenCanvas.height = height * exportScale;
+
+        const ctx = offscreenCanvas.getContext('2d');
+        if (!ctx) return;
+
+        // Draw white background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+
+        // Apply scale and offset so the entire bounding box is rendered tightly 
+        ctx.scale(exportScale, exportScale);
+        ctx.translate(-minX, -minY);
+
+        // Render all shapes
+        for (const shape of this.shapes) {
+            this.draw(shape, ctx);
+        }
+
+        // Trigger download
+        const dataUrl = offscreenCanvas.toDataURL('image/png', 1.0);
         const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", "slate_drawing_" + Date.now() + ".slate");
+        downloadAnchorNode.setAttribute("href", dataUrl);
+        downloadAnchorNode.setAttribute("download", "slate_drawing_" + Date.now() + ".png");
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();

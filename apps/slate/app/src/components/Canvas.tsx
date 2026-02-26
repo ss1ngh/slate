@@ -162,40 +162,10 @@ export default function Canvas() {
         }}
       />
 
-      {/* Hidden File Input for Importing Drawings */}
-      <input
-        type="file"
-        ref={importInputRef}
-        accept=".slate,.json"
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              const content = ev.target?.result as string;
-              if (engineRef.current) {
-                engineRef.current.importDrawing(content);
-              }
-            };
-            reader.readAsText(file);
-          }
-          e.target.value = ''; // Reset input so the same file can be selected again
-        }}
-      />
-
-      {/* Top Right: Export and Import Controls */}
+      {/* export */}
       <div className="fixed top-3 right-4 z-50 flex items-center gap-2">
         <button
-          onClick={() => importInputRef.current?.click()}
-          className="flex items-center gap-2 px-4 py-2 bg-white/95 backdrop-blur-xl border border-slate-200/50 rounded-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.08),0_10px_24px_-4px_rgba(0,0,0,0.10)] text-slate-700 hover:text-indigo-600 hover:bg-slate-50 transition-all font-medium text-sm"
-          title="Import Drawing"
-        >
-          <Upload size={16} />
-          <span>Import</span>
-        </button>
-        <button
-          onClick={() => engineRef.current?.exportDrawing()}
+          onClick={() => engineRef.current?.exportImage()}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 border border-indigo-500 rounded-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.08),0_10px_24px_-4px_rgba(0,0,0,0.10)] text-white hover:bg-indigo-700 transition-all font-medium text-sm"
           title="Export Drawing"
         >
