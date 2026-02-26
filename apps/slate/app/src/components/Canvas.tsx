@@ -5,7 +5,8 @@ import { SlateEngine } from '../canvas-engine/engine';
 import { ShapeType, ToolType } from '../config/types';
 import Toolbar from './ui/Toolbar';
 import Properties from './ui/Properties';
-import { Undo2, Redo2, Plus, Minus as MinusIcon, Search } from 'lucide-react';
+import { Undo2, Redo2, Plus, Minus as MinusIcon, Search, HelpCircle } from 'lucide-react';
+import Link from 'next/link';
 
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -160,6 +161,18 @@ export default function Canvas() {
           e.target.value = '';
         }}
       />
+
+      {/* Top Right: Guide/Help Button */}
+      <div className="fixed top-3 right-4 z-50">
+        <Link
+          href="/guide"
+          className="flex items-center gap-2 px-4 py-2 bg-white/95 backdrop-blur-xl border border-slate-200/50 rounded-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.08),0_10px_24px_-4px_rgba(0,0,0,0.10)] text-slate-700 hover:text-indigo-600 hover:bg-slate-50 transition-all font-medium text-sm"
+          title="View User Guide"
+        >
+          <HelpCircle size={16} />
+          <span>How to use</span>
+        </Link>
+      </div>
 
       <Toolbar
         activeTool={activeTool}
