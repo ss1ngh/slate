@@ -8,6 +8,11 @@ export class SlateEngine {
     private shapes: Shape[] = [];
     private history: Shape[][] = [];
     private redoStack: Shape[][] = [];
+    private dpr: number = 1;
+    private pathCache = new WeakMap<Shape, Path2D>();
+
+    public onZoomChange?: (zoom: number) => void;
+    public onSelectionChange?: (shape: Shape | null) => void;
 
     private isDrawing: boolean = false;
     private isDragging: boolean = false;
@@ -34,22 +39,23 @@ export class SlateEngine {
     }
 
     private initDPI() {
-        const dpr = window.devicePixelRatio || 1;
+        this.dpr = window.devicePixelRatio || 1;
         const rect = this.canvas.getBoundingClientRect();
 
         this.canvas.style.width = `${rect.width}px`;
         this.canvas.style.height = `${rect.height}px`;
 
-        this.canvas.width = rect.width * dpr;
-        this.canvas.height = rect.height * dpr;
+        this.canvas.width = rect.width * this.dpr;
+        this.canvas.height = rect.height * this.dpr;
 
-        this.ctx.scale(dpr, dpr);
+        this.ctx.scale(this.dpr, this.dpr);
     }
 
     public setTool(tool: ToolType) {
         this.selectedTool = tool;
         if (tool !== 'select') {
             this.selectedShape = null;
+            if (this.onSelectionChange) this.onSelectionChange(null);
             this.render();
         }
     }
@@ -80,6 +86,7 @@ export class SlateEngine {
         this.canvas.addEventListener("mousedown", this.handleMouseDown.bind(this));
         window.addEventListener("mousemove", this.handleMouseMove.bind(this));
         window.addEventListener("mouseup", this.handleMouseUp.bind(this));
+        this.canvas.addEventListener("wheel", this.handleWheel.bind(this), { passive: false });
 
         //delete key listener
         window.addEventListener("keydown", (e) => {
@@ -116,6 +123,7 @@ export class SlateEngine {
                 this.history.push([...this.shapes]);
             } else {
                 this.selectedShape = shape;
+                if (this.onSelectionChange) this.onSelectionChange(shape);
             }
 
             this.render();
@@ -170,6 +178,8 @@ export class SlateEngine {
                         x: p.x + dx,
                         y: p.y + dy
                     }));
+                    // Refresh cache after move
+                    this.pathCache.set(this.selectedShape, this.getSvgPathFromStroke(this.selectedShape.points));
                     break;
             }
 
@@ -197,6 +207,8 @@ export class SlateEngine {
                 break;
             case "pencil":
                 this.currentShape.points.push({ x, y });
+                // Update path cache while drawing
+                this.pathCache.set(this.currentShape, this.getSvgPathFromStroke(this.currentShape.points));
                 break;
         }
         this.render();
@@ -315,18 +327,78 @@ export class SlateEngine {
     public render(): void {
         this.ctx.resetTransform();
 
-        //clear canvas before drawing
+        // 1. Clear the entire canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        //slide/pan the paper 
-        this.ctx.translate(this.camera.x, this.camera.y);
+        // 2. Draw background
+        this.ctx.scale(this.dpr, this.dpr);
+        this.ctx.fillStyle = "#f8fafc"; // slate-50 background
+        this.ctx.fillRect(0, 0, this.canvas.width / this.dpr, this.canvas.height / this.dpr);
 
-        //zoom the paper
+        // 3. Setup transformations (zoom/pan) with save/restore
+        this.ctx.save();
+        this.ctx.translate(this.camera.x, this.camera.y);
         this.ctx.scale(this.camera.z, this.camera.z);
 
+        // 4. Redraw all committed shapes
         for (const shape of this.shapes) {
             this.draw(shape);
         }
+
+        // 5. Draw the in-progress shape being dragged (zero-lag preview)
+        if (this.currentShape) {
+            this.draw(this.currentShape);
+        }
+
+        // 6. Draw selection highlight on top of everything
+        if (this.selectedTool === 'select' && this.selectedShape) {
+            this.drawSelectionHighlight(this.selectedShape);
+        }
+
+        this.ctx.restore();
+    }
+
+    private drawSelectionHighlight(shape: Shape): void {
+        this.ctx.save();
+        this.ctx.strokeStyle = "#3b82f6"; // Blue-500
+        this.ctx.lineWidth = 1.5;
+        this.ctx.setLineDash([5, 5]);
+
+        const padding = 8;
+        let bx = 0, by = 0, bw = 0, bh = 0;
+
+        switch (shape.type) {
+            case 'rect':
+                bx = Math.min(shape.x, shape.x + shape.width) - padding;
+                by = Math.min(shape.y, shape.y + shape.height) - padding;
+                bw = Math.abs(shape.width) + padding * 2;
+                bh = Math.abs(shape.height) + padding * 2;
+                break;
+            case 'circle':
+                bx = shape.x - shape.radius - padding;
+                by = shape.y - shape.radius - padding;
+                bw = shape.radius * 2 + padding * 2;
+                bh = shape.radius * 2 + padding * 2;
+                break;
+            case 'line':
+            case 'arrow':
+                bx = Math.min(shape.x, shape.endX) - padding;
+                by = Math.min(shape.y, shape.endY) - padding;
+                bw = Math.abs(shape.endX - shape.x) + padding * 2;
+                bh = Math.abs(shape.endY - shape.y) + padding * 2;
+                break;
+            case 'pencil':
+                const xs = shape.points.map(p => p.x);
+                const ys = shape.points.map(p => p.y);
+                bx = Math.min(...xs) - padding;
+                by = Math.min(...ys) - padding;
+                bw = Math.max(...xs) - bx + padding;
+                bh = Math.max(...ys) - by + padding;
+                break;
+        }
+
+        this.ctx.strokeRect(bx, by, bw, bh);
+        this.ctx.restore();
     }
 
     private draw(shape: Shape): void {
@@ -334,51 +406,6 @@ export class SlateEngine {
         this.ctx.lineWidth = shape.strokeWidth;
         this.ctx.lineCap = "round";
         this.ctx.lineJoin = "round";
-
-        //draw selection highlight
-        if (this.selectedTool === 'select' && this.selectedShape?.id === shape.id) {
-            this.ctx.save();
-            this.ctx.strokeStyle = "#3b82f6"; // Blue-500
-            this.ctx.lineWidth = 1.5;
-            this.ctx.setLineDash([5, 5]);
-
-            //draw bounding box for most shapes
-            let padding = 8;
-            let bx, by, bw, bh;
-
-            switch (shape.type) {
-                case 'rect':
-                    bx = Math.min(shape.x, shape.x + shape.width) - padding;
-                    by = Math.min(shape.y, shape.y + shape.height) - padding;
-                    bw = Math.abs(shape.width) + padding * 2;
-                    bh = Math.abs(shape.height) + padding * 2;
-                    break;
-                case 'circle':
-                    bx = shape.x - shape.radius - padding;
-                    by = shape.y - shape.radius - padding;
-                    bw = shape.radius * 2 + padding * 2;
-                    bh = shape.radius * 2 + padding * 2;
-                    break;
-                case 'line':
-                case 'arrow':
-                    bx = Math.min(shape.x, shape.endX) - padding;
-                    by = Math.min(shape.y, shape.endY) - padding;
-                    bw = Math.abs(shape.endX - shape.x) + padding * 2;
-                    bh = Math.abs(shape.endY - shape.y) + padding * 2;
-                    break;
-                case 'pencil':
-                    const xs = shape.points.map(p => p.x);
-                    const ys = shape.points.map(p => p.y);
-                    bx = Math.min(...xs) - padding;
-                    by = Math.min(...ys) - padding;
-                    bw = Math.max(...xs) - bx + padding;
-                    bh = Math.max(...ys) - by + padding;
-                    break;
-            }
-
-            this.ctx.strokeRect(bx, by, bw, bh);
-            this.ctx.restore();
-        }
 
         this.ctx.beginPath();
 
@@ -399,13 +426,15 @@ export class SlateEngine {
                 this.drawArrow(shape.x, shape.y, shape.endX, shape.endY);
                 break;
             case "pencil": {
-                //need 2 points to draw a shape
                 if (shape.points.length < 2) break;
 
-                //calculate the smooth outline
-                const strokePath = this.getSvgPathFromStroke(shape.points);
+                // Use cached path if available
+                let strokePath = this.pathCache.get(shape);
+                if (!strokePath) {
+                    strokePath = this.getSvgPathFromStroke(shape.points);
+                    this.pathCache.set(shape, strokePath);
+                }
 
-                //fill colour since perfect-freehand creates a polygon
                 this.ctx.fillStyle = shape.strokeColor;
                 this.ctx.fill(strokePath);
                 break;
@@ -496,8 +525,10 @@ export class SlateEngine {
             //adjust pan so the mouse stays over the same world point
             this.camera.x = mouseX - worldX * newZoom;
             this.camera.y = mouseY - worldY * newZoom;
+
+            if (this.onZoomChange) this.onZoomChange(Math.round(this.camera.z * 100));
         } else {
-            // Normal Scroll = Pan
+            //normal scroll = pan
             this.camera.x -= e.deltaX;
             this.camera.y -= e.deltaY;
         }
