@@ -1142,6 +1142,45 @@ export class SlateEngine {
         }
     }
 
+    public exportDrawing() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.shapes));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "slate_drawing_" + Date.now() + ".slate");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
+    public importDrawing(jsonString: string) {
+        try {
+            const parsed = JSON.parse(jsonString);
+            let shapesArray = parsed;
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.shapes) {
+                shapesArray = parsed.shapes;
+            }
+
+            this.history.push([...this.shapes]);
+
+            // Handle loading raw exported array or wrapped objects
+            if (Array.isArray(shapesArray)) {
+                this.shapes = shapesArray.map((s: any) => ({
+                    ...s,
+                    strokeStyle: s.strokeStyle ?? 'solid',
+                }));
+            }
+
+            this.selectedShapes = [];
+            this.redoStack = [];
+
+            this.saveToLocalStorage();
+            this.render();
+        } catch (e) {
+            console.error("Failed to import drawing:", e);
+            alert("Invalid drawing file.");
+        }
+    }
+
 
     public undo() {
         if (this.history.length === 0) return;
@@ -1371,10 +1410,12 @@ export class SlateEngine {
             case 'image':
             case 'text':
             case 'diamond': {
-                const minX = Math.min(shape.x, shape.x + shape.width);
-                const minY = Math.min(shape.y, shape.y + shape.height);
-                const maxX = Math.max(shape.x, shape.x + shape.width);
-                const maxY = Math.max(shape.y, shape.y + shape.height);
+                const w = shape.width || 0;
+                const h = shape.height || 0;
+                const minX = Math.min(shape.x, shape.x + w);
+                const minY = Math.min(shape.y, shape.y + h);
+                const maxX = Math.max(shape.x, shape.x + w);
+                const maxY = Math.max(shape.y, shape.y + h);
                 const mx = (minX + maxX) / 2, my = (minY + maxY) / 2;
                 return [
                     { id: 'tl', x: minX, y: minY }, { id: 't', x: mx, y: minY }, { id: 'tr', x: maxX, y: minY },
@@ -1441,10 +1482,12 @@ export class SlateEngine {
         let bx: number, by: number, bx2: number, by2: number;
         switch (shape.type) {
             case 'rect': case 'image': case 'text': case 'diamond': {
-                bx = Math.min(shape.x, shape.x + shape.width) - pad;
-                by = Math.min(shape.y, shape.y + shape.height) - pad;
-                bx2 = Math.max(shape.x, shape.x + shape.width) + pad;
-                by2 = Math.max(shape.y, shape.y + shape.height) + pad;
+                const w = shape.width || 0;
+                const h = shape.height || 0;
+                bx = Math.min(shape.x, shape.x + w) - pad;
+                by = Math.min(shape.y, shape.y + h) - pad;
+                bx2 = Math.max(shape.x, shape.x + w) + pad;
+                by2 = Math.max(shape.y, shape.y + h) + pad;
                 break;
             }
             case 'circle': {

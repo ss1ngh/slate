@@ -5,13 +5,14 @@ import { SlateEngine } from '../canvas-engine/engine';
 import { ShapeType, ToolType } from '../config/types';
 import Toolbar from './ui/Toolbar';
 import Properties from './ui/Properties';
-import { Undo2, Redo2, Plus, Minus as MinusIcon, Search, HelpCircle, Trash2 } from 'lucide-react';
+import { Undo2, Redo2, Plus, Minus as MinusIcon, Search, HelpCircle, Trash2, Download, Upload } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTool, setActiveTool] = useState<ShapeType>('pencil');
   const [strokeColor, setStrokeColor] = useState('#000000');
@@ -161,16 +162,46 @@ export default function Canvas() {
         }}
       />
 
-      {/* Top Right: Guide/Help Button */}
-      <div className="fixed top-3 right-4 z-50">
-        <Link
-          href="/guide"
+      {/* Hidden File Input for Importing Drawings */}
+      <input
+        type="file"
+        ref={importInputRef}
+        accept=".slate,.json"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const content = ev.target?.result as string;
+              if (engineRef.current) {
+                engineRef.current.importDrawing(content);
+              }
+            };
+            reader.readAsText(file);
+          }
+          e.target.value = ''; // Reset input so the same file can be selected again
+        }}
+      />
+
+      {/* Top Right: Export and Import Controls */}
+      <div className="fixed top-3 right-4 z-50 flex items-center gap-2">
+        <button
+          onClick={() => importInputRef.current?.click()}
           className="flex items-center gap-2 px-4 py-2 bg-white/95 backdrop-blur-xl border border-slate-200/50 rounded-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.08),0_10px_24px_-4px_rgba(0,0,0,0.10)] text-slate-700 hover:text-indigo-600 hover:bg-slate-50 transition-all font-medium text-sm"
-          title="View User Guide"
+          title="Import Drawing"
         >
-          <HelpCircle size={16} />
-          <span>How to use</span>
-        </Link>
+          <Upload size={16} />
+          <span>Import</span>
+        </button>
+        <button
+          onClick={() => engineRef.current?.exportDrawing()}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 border border-indigo-500 rounded-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.08),0_10px_24px_-4px_rgba(0,0,0,0.10)] text-white hover:bg-indigo-700 transition-all font-medium text-sm"
+          title="Export Drawing"
+        >
+          <Download size={16} />
+          <span>Export</span>
+        </button>
       </div>
 
       <Toolbar
@@ -245,6 +276,14 @@ export default function Canvas() {
         >
           <Plus size={16} />
         </button>
+        <div className="w-px h-4 bg-slate-200 mx-1" />
+        <Link
+          href="/guide"
+          className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors"
+          title="View User Guide (How to use)"
+        >
+          <HelpCircle size={16} />
+        </Link>
       </div>
 
       <canvas
