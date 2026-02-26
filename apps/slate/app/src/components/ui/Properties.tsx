@@ -53,7 +53,7 @@ export default function Properties({
     onUngroupShapes
 }: PropertiesProps) {
 
-    const [pos, setPos] = useState({ x: 24, y: 24 });
+    const [pos, setPos] = useState({ x: 20, y: 160 });
     const dragging = useRef(false);
     const offset = useRef({ x: 0, y: 0 });
     const [feedback, setFeedback] = useState<string | null>(null);

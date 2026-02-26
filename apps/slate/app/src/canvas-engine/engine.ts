@@ -26,6 +26,7 @@ export class SlateEngine {
 
     private currentShape: Shape | null = null;
     public selectedShapes: Shape[] = [];
+    public onSceneChange?: (count: number) => void;
     private selectionBox: { x: number, y: number, w: number, h: number } | null = null;
     private isBoxSelecting: boolean = false;
 
@@ -851,6 +852,10 @@ export class SlateEngine {
         }
 
         this.ctx.restore();
+
+        if (this.onSceneChange) {
+            this.onSceneChange(this.shapes.length);
+        }
     }
 
     private drawSelectionHighlight(shape: Shape): void {
