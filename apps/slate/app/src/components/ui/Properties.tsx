@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Pipette, GripHorizontal } from 'lucide-react';
+import { Pipette, GripHorizontal, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine } from 'lucide-react';
 
 const STROKE_COLORS = [
     '#1e1e1e',
@@ -25,6 +25,10 @@ interface PropertiesProps {
     strokeStyle: 'solid' | 'dashed' | 'dotted';
     onStyleChange: (style: 'solid' | 'dashed' | 'dotted') => void;
     isSelected: boolean;
+    onBringForward: () => void;
+    onSendBackward: () => void;
+    onBringToFront: () => void;
+    onSendToBack: () => void;
 }
 
 export default function Properties({
@@ -34,12 +38,29 @@ export default function Properties({
     onWidthChange,
     strokeStyle,
     onStyleChange,
-    isSelected
+    isSelected,
+    onBringForward,
+    onSendBackward,
+    onBringToFront,
+    onSendToBack
 }: PropertiesProps) {
 
     const [pos, setPos] = useState({ x: 24, y: 24 });
     const dragging = useRef(false);
     const offset = useRef({ x: 0, y: 0 });
+    const [feedback, setFeedback] = useState<string | null>(null);
+    const feedbackTimeout = useRef<NodeJS.Timeout | null>(null);
+
+    const showFeedback = (text: string) => {
+        setFeedback(text);
+        if (feedbackTimeout.current) clearTimeout(feedbackTimeout.current);
+        feedbackTimeout.current = setTimeout(() => setFeedback(null), 1500);
+    };
+
+    const handleBringToFront = () => { onBringToFront(); showFeedback("Moved to top"); };
+    const handleBringForward = () => { onBringForward(); showFeedback("Moved forward"); };
+    const handleSendBackward = () => { onSendBackward(); showFeedback("Moved backward"); };
+    const handleSendToBack = () => { onSendToBack(); showFeedback("Moved to bottom"); };
 
     useEffect(() => {
         const onMove = (e: MouseEvent) => {
@@ -234,6 +255,36 @@ export default function Properties({
                         ))}
                     </div>
                 </div>
+
+                {isSelected && (
+                    <>
+                        <div style={dividerStyle} />
+                        <div className="space-y-2.5 relative">
+                            <div className="flex justify-between items-center">
+                                <span style={labelStyle}>Layer</span>
+                                {feedback && (
+                                    <span className="text-[10px] font-semibold text-indigo-600 animate-in fade-in slide-in-from-bottom-1 px-1.5 py-0.5 rounded bg-indigo-50/80 border border-indigo-100/50">
+                                        {feedback}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={handleBringToFront} className="p-1.5 hover:bg-black/5 rounded-lg transition-colors" title="Bring to Front">
+                                    <ArrowUpToLine size={16} className="text-slate-600" />
+                                </button>
+                                <button onClick={handleBringForward} className="p-1.5 hover:bg-black/5 rounded-lg transition-colors" title="Bring Forward">
+                                    <ArrowUp size={16} className="text-slate-600" />
+                                </button>
+                                <button onClick={handleSendBackward} className="p-1.5 hover:bg-black/5 rounded-lg transition-colors" title="Send Backward">
+                                    <ArrowDown size={16} className="text-slate-600" />
+                                </button>
+                                <button onClick={handleSendToBack} className="p-1.5 hover:bg-black/5 rounded-lg transition-colors" title="Send to Back">
+                                    <ArrowDownToLine size={16} className="text-slate-600" />
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                )}
 
             </div>
         </div>

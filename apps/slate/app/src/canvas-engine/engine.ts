@@ -806,6 +806,54 @@ export class SlateEngine {
         this.render();
     }
 
+    public bringForward() {
+        if (!this.selectedShape) return;
+        const index = this.shapes.findIndex(s => s.id === this.selectedShape?.id);
+        if (index > -1 && index < this.shapes.length - 1) {
+            this.history.push([...this.shapes]);
+            const shape = this.shapes.splice(index, 1)[0]!;
+            this.shapes.splice(index + 1, 0, shape);
+            this.saveToLocalStorage();
+            this.render();
+        }
+    }
+
+    public sendBackward() {
+        if (!this.selectedShape) return;
+        const index = this.shapes.findIndex(s => s.id === this.selectedShape?.id);
+        if (index > 0) {
+            this.history.push([...this.shapes]);
+            const shape = this.shapes.splice(index, 1)[0]!;
+            this.shapes.splice(index - 1, 0, shape);
+            this.saveToLocalStorage();
+            this.render();
+        }
+    }
+
+    public bringToFront() {
+        if (!this.selectedShape) return;
+        const index = this.shapes.findIndex(s => s.id === this.selectedShape?.id);
+        if (index > -1 && index < this.shapes.length - 1) {
+            this.history.push([...this.shapes]);
+            const shape = this.shapes.splice(index, 1)[0]!;
+            this.shapes.push(shape);
+            this.saveToLocalStorage();
+            this.render();
+        }
+    }
+
+    public sendToBack() {
+        if (!this.selectedShape) return;
+        const index = this.shapes.findIndex(s => s.id === this.selectedShape?.id);
+        if (index > 0) {
+            this.history.push([...this.shapes]);
+            const shape = this.shapes.splice(index, 1)[0]!;
+            this.shapes.unshift(shape);
+            this.saveToLocalStorage();
+            this.render();
+        }
+    }
+
 
     public clearCanvas() {
         if (this.shapes.length === 0) return;

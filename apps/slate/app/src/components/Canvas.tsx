@@ -133,6 +133,10 @@ export default function Canvas() {
         strokeStyle={strokeStyle}
         onStyleChange={setStrokeStyle}
         isSelected={!!selectedId}
+        onBringForward={() => engineRef.current?.bringForward()}
+        onSendBackward={() => engineRef.current?.sendBackward()}
+        onBringToFront={() => engineRef.current?.bringToFront()}
+        onSendToBack={() => engineRef.current?.sendToBack()}
       />
 
       {/* Bottom Left: History Controls */}
