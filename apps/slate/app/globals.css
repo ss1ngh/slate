@@ -4,14 +4,16 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #0f172a; /* slate-900 */
+  --foreground: #0f172a;
+  /* slate-900 */
 }
 
 html,
 body {
   max-width: 100vw;
-  overflow: hidden; /* Prevent scrolling on the drawing app */
-  background: var(--background);
+  overflow: hidden;
+  /* Prevent scrolling on the drawing app */
+  background: #ffffff;
   color: var(--foreground);
 }
 

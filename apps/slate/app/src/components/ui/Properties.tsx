@@ -1,27 +1,29 @@
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import { Pipette, GripHorizontal } from 'lucide-react';
 
 const STROKE_COLORS = [
-    '#adb5bd', // light gray
-    '#ff8787', // light red
-    '#51cf66', // light green
-    '#5c7cfa', // light blue
-    '#ffa94d', // light orange
-    '#e599f7', // light purple
+    '#1e1e1e',
+    '#e03131',
+    '#f783ac',
+    '#2f9e44',
+    '#1971c2',
 ];
 
 const STROKE_WIDTHS = [
     { label: 'Thin', value: 2 },
-    { label: 'Bold', value: 5 },
-    { label: 'Extra', value: 10 },
+    { label: 'Bold', value: 7 },
+    { label: 'Extra', value: 15 },
 ];
 
-const STYLES = ['Simple', 'Rough', 'Dense'];
+
 
 interface PropertiesProps {
     strokeColor: string;
     onColorChange: (color: string) => void;
     strokeWidth: number;
     onWidthChange: (width: number) => void;
+    strokeStyle: 'solid' | 'dashed' | 'dotted';
+    onStyleChange: (style: 'solid' | 'dashed' | 'dotted') => void;
     isSelected: boolean;
 }
 
@@ -30,8 +32,37 @@ export default function Properties({
     onColorChange,
     strokeWidth,
     onWidthChange,
+    strokeStyle,
+    onStyleChange,
     isSelected
 }: PropertiesProps) {
+
+    const [pos, setPos] = useState({ x: 24, y: 24 });
+    const dragging = useRef(false);
+    const offset = useRef({ x: 0, y: 0 });
+
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            if (!dragging.current) return;
+            setPos({
+                x: Math.max(0, e.clientX - offset.current.x),
+                y: Math.max(0, e.clientY - offset.current.y),
+            });
+        };
+        const onUp = () => { dragging.current = false; };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        return () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+    }, []);
+
+    const onDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+        dragging.current = true;
+        offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+        e.preventDefault();
+    };
 
     const glassPanel: React.CSSProperties = {
         background: 'rgba(255, 255, 255, 0.65)',
@@ -43,7 +74,7 @@ export default function Properties({
 
     const segmentTrack: React.CSSProperties = {
         display: 'flex',
-        background: 'rgba(0,0,0,0.05)',
+        background: 'rgba(0, 0, 0, 0.06)',
         padding: '3px',
         borderRadius: '10px',
         gap: '2px',
@@ -69,7 +100,7 @@ export default function Properties({
             fontSize: '12px',
             fontWeight: 500,
             background: 'transparent',
-            color: 'rgba(71,85,105,0.80)',
+            color: 'rgba(0,0,0,0.75)',
             border: 'none',
             cursor: 'pointer',
         };
@@ -88,21 +119,33 @@ export default function Properties({
     };
 
     return (
-        <div className="fixed left-6 top-1/2 -translate-y-1/2 z-50">
+        <div
+            className="fixed z-50"
+            style={{ left: pos.x, top: pos.y }}
+        >
             <div
-                className="flex flex-col gap-4 p-4 rounded-2xl w-56"
+                className="flex flex-col gap-4 p-4 rounded-2xl w-55"
                 style={glassPanel}
             >
+                {/*drag*/}
+                <div
+                    className="flex items-center justify-center -mt-1 mb-0 cursor-grab active:cursor-grabbing"
+                    style={{ color: 'rgba(0,0,0,0.25)' }}
+                    onMouseDown={onDragStart}
+                    title="Drag to move"
+                >
+                    <GripHorizontal size={16} />
+                </div>
 
-                {/* Stroke Color */}
+                {/* stroke color */}
                 <div className="space-y-2.5">
                     <span style={labelStyle}>Stroke</span>
-                    <div className="flex flex-wrap gap-2 items-center">
+                    <div className="flex gap-1.5 items-center">
                         {STROKE_COLORS.map((color) => (
                             <button
                                 key={color}
                                 onClick={() => onColorChange(color)}
-                                className="w-6 h-6 rounded-full transition-transform"
+                                className="w-6 h-6 rounded-full transition-transform flex-shrink-0"
                                 style={{
                                     backgroundColor: color,
                                     border: strokeColor === color
@@ -113,29 +156,50 @@ export default function Properties({
                                 }}
                             />
                         ))}
-                        <input
-                            type="color"
-                            value={strokeColor}
-                            onChange={(e) => onColorChange(e.target.value)}
-                            className="w-6 h-6 rounded-full cursor-pointer bg-transparent appearance-none [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-none"
-                            style={{ border: '2px solid rgba(0,0,0,0.10)' }}
+
+                        <div style={{ width: 2, height: 20, background: 'rgba(0, 0, 0, 0.45)', margin: '0 2px', flexShrink: 0 }} />
+                        <label
+                            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer transition-colors"
+                            style={{ border: '2px solid rgba(0,0,0,0.12)', color: '#555' }}
                             title="Custom color"
-                        />
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                            <Pipette size={14} />
+                            <input
+                                type="color"
+                                value={strokeColor}
+                                onChange={(e) => onColorChange(e.target.value)}
+                                className="sr-only"
+                            />
+                        </label>
                     </div>
                 </div>
 
+                <div style={dividerStyle} />
 
-                {/* Stroke Width */}
+                {/* stroke width */}
                 <div className="space-y-2.5">
                     <span style={labelStyle}>Stroke Width</span>
                     <div style={segmentTrack}>
-                        {STROKE_WIDTHS.map((sw) => (
+                        {([
+                            { value: 2, sw: 1.5, title: 'Thin' },
+                            { value: 7, sw: 3, title: 'Bold' },
+                            { value: 15, sw: 5.5, title: 'Extra' },
+                        ] as { value: number; sw: number; title: string }[]).map(({ value, sw, title }) => (
                             <button
-                                key={sw.label}
-                                onClick={() => onWidthChange(sw.value)}
-                                style={segmentBtn(strokeWidth === sw.value)}
+                                key={value}
+                                onClick={() => onWidthChange(value)}
+                                style={{ ...segmentBtn(strokeWidth === value), padding: '6px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                title={title}
                             >
-                                {sw.label}
+                                <svg width="28" height="10" viewBox="0 0 28 10">
+                                    <line x1="2" y1="5" x2="26" y2="5"
+                                        stroke="currentColor"
+                                        strokeWidth={sw}
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
                             </button>
                         ))}
                     </div>
@@ -143,16 +207,29 @@ export default function Properties({
 
                 <div style={dividerStyle} />
 
-                {/* Style */}
+                {/* stroke style */}
                 <div className="space-y-2.5">
-                    <span style={labelStyle}>Style</span>
+                    <span style={labelStyle}>Stroke Style</span>
                     <div style={segmentTrack}>
-                        {STYLES.map((style) => (
+                        {([
+                            { value: 'solid', dasharray: 'none', title: 'Solid' },
+                            { value: 'dashed', dasharray: '4 3', title: 'Dashed' },
+                            { value: 'dotted', dasharray: '1.3 3', title: 'Dotted' },
+                        ] as { value: 'solid' | 'dashed' | 'dotted'; dasharray: string; title: string }[]).map(({ value, dasharray, title }) => (
                             <button
-                                key={style}
-                                style={segmentBtn(style === 'Simple')}
+                                key={value}
+                                onClick={() => onStyleChange(value)}
+                                style={{ ...segmentBtn(strokeStyle === value), padding: '6px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                title={title}
                             >
-                                {style}
+                                <svg width="28" height="10" viewBox="0 0 28 10">
+                                    <line x1="2" y1="5" x2="26" y2="5"
+                                        stroke="currentColor"
+                                        strokeWidth={2}
+                                        strokeLinecap="round"
+                                        strokeDasharray={dasharray === 'none' ? undefined : dasharray}
+                                    />
+                                </svg>
                             </button>
                         ))}
                     </div>
@@ -162,4 +239,3 @@ export default function Properties({
         </div>
     );
 }
-

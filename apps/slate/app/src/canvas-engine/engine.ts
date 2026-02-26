@@ -26,6 +26,7 @@ export class SlateEngine {
     private selectedTool: ToolType = 'pencil';
     private strokeColor: string = "#000000";
     private strokeWidth: number = 2;
+    private strokeStyle: 'solid' | 'dashed' | 'dotted' = 'solid';
 
     private camera = { x: 0, y: 0, z: 1 }; // x, y : offset z : zoom level
 
@@ -84,9 +85,18 @@ export class SlateEngine {
     public setWidth(width: number) {
         this.strokeWidth = width;
         if (this.selectedShape && this.selectedTool === 'select') {
-            // Update selected shape width
             this.history.push([...this.shapes]);
             this.selectedShape.strokeWidth = width;
+            this.saveToLocalStorage();
+            this.render();
+        }
+    }
+
+    public setStrokeStyle(style: 'solid' | 'dashed' | 'dotted') {
+        this.strokeStyle = style;
+        if (this.selectedShape && this.selectedTool === 'select') {
+            this.history.push([...this.shapes]);
+            this.selectedShape.strokeStyle = style;
             this.saveToLocalStorage();
             this.render();
         }
@@ -165,7 +175,7 @@ export class SlateEngine {
         this.isDrawing = true;
         const id = generateId();
 
-        const base = { id, x, y, strokeColor: this.strokeColor, strokeWidth: this.strokeWidth };
+        const base = { id, x, y, strokeColor: this.strokeColor, strokeWidth: this.strokeWidth, strokeStyle: this.strokeStyle };
 
         switch (this.selectedTool) {
             case "rect":
@@ -410,7 +420,7 @@ export class SlateEngine {
 
         // 2. Draw background
         this.ctx.scale(this.dpr, this.dpr);
-        this.ctx.fillStyle = "#f8fafc"; // slate-50 background
+        this.ctx.fillStyle = "#ffffff";
         this.ctx.fillRect(0, 0, this.canvas.width / this.dpr, this.canvas.height / this.dpr);
 
         // 3. Setup transformations (zoom/pan) with save/restore
@@ -490,6 +500,13 @@ export class SlateEngine {
         this.ctx.lineWidth = shape.strokeWidth;
         this.ctx.lineCap = "round";
         this.ctx.lineJoin = "round";
+
+        // Apply dash pattern based on strokeStyle
+        const dash =
+            shape.strokeStyle === 'dashed' ? [shape.strokeWidth * 4, shape.strokeWidth * 2.5] :
+                shape.strokeStyle === 'dotted' ? [2, shape.strokeWidth * 2.5] :
+                    [];
+        this.ctx.setLineDash(dash);
 
         this.ctx.beginPath();
 
@@ -640,7 +657,12 @@ export class SlateEngine {
         const saved = localStorage.getItem('slate_shapes');
         if (saved) {
             try {
-                this.shapes = JSON.parse(saved);
+                const parsed = JSON.parse(saved);
+                // Migrate old shapes that predate strokeStyle field
+                this.shapes = parsed.map((s: any) => ({
+                    ...s,
+                    strokeStyle: s.strokeStyle ?? 'solid',
+                }));
                 this.render();
             } catch (e) {
                 console.error("Failed to parse saved shapes");

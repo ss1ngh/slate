@@ -27,6 +27,7 @@
   "dependencies": {
     "geist": "^1.7.0",
     "lucide-react": "^0.564.0",
+    "nodemon": "^3.1.14",
     "perfect-freehand": "^1.2.3"
   }
 }

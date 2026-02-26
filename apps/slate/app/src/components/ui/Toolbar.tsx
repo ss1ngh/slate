@@ -9,8 +9,7 @@ import {
   MousePointer2,
   Hand,
   Diamond,
-  Type,
-  Eraser
+  Eraser,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -19,54 +18,58 @@ interface ToolbarProps {
 }
 
 const tools: { type: ShapeType; icon: React.ReactNode; label: string }[] = [
-  { type: 'select', icon: <MousePointer2 size={18} />, label: 'Select (V)' },
-  { type: 'pencil', icon: <Pencil size={18} />, label: 'Pencil (P)' },
-  { type: 'rect', icon: <Square size={18} />, label: 'Rectangle (R)' },
-  { type: 'circle', icon: <CircleIcon size={18} />, label: 'Circle (C)' },
-  { type: 'line', icon: <Minus size={18} />, label: 'Line (L)' },
-  { type: 'arrow', icon: <ArrowUpRight size={18} />, label: 'Arrow (A)' },
+  { type: 'hand', icon: <Hand size={16} />, label: 'Hand — pan canvas (H)' },
+  { type: 'select', icon: <MousePointer2 size={16} />, label: 'Select (V)' },
+  { type: 'pencil', icon: <Pencil size={16} />, label: 'Pencil (P)' },
+  { type: 'rect', icon: <Square size={16} />, label: 'Rectangle (R)' },
+  { type: 'diamond', icon: <Diamond size={16} />, label: 'Diamond (D)' },
+  { type: 'circle', icon: <CircleIcon size={16} />, label: 'Circle (C)' },
+  { type: 'line', icon: <Minus size={16} />, label: 'Line (L)' },
+  { type: 'arrow', icon: <ArrowUpRight size={16} />, label: 'Arrow (A)' },
+  { type: 'eraser', icon: <Eraser size={16} />, label: 'Eraser (E)' },
 ];
 
 export default function Toolbar({ activeTool, onToolChange }: ToolbarProps) {
   return (
-    <div className="fixed top-8 left-1/2 -translate-x-1/2 z-50">
-      <div className="flex items-center gap-1.5 p-1.5 bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl">
-        {/* Adding decorative icons to match the mockup's complexity */}
-        <div className="flex items-center gap-1 px-2 border-r border-slate-700">
-          <button className="p-2 text-slate-400 hover:text-white transition-colors">
-            <Hand size={18} />
-          </button>
-        </div>
+    <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50">
+      <div
+        className="flex items-center gap-1 p-1 rounded-xl"
+        style={{
+          background: '#ffffff',
+          border: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.08), 0 10px 24px -4px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.04)',
+        }}
+      >
+        {tools.map((tool, i) => {
+          const isActive = activeTool === tool.type;
 
-        <div className="flex items-center gap-1 px-1">
-          {tools.map((tool) => (
-            <button
-              key={tool.type}
-              onClick={() => onToolChange(tool.type)}
-              className={`
-                w-10 h-10 rounded-xl transition-all duration-200 flex items-center justify-center group
-                ${activeTool === tool.type
-                  ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
-                  : 'text-slate-400 hover:bg-slate-700 hover:text-slate-100'
+          const showSeparator = i === 1;
+          return (
+            <React.Fragment key={tool.type}>
+              {showSeparator && (
+                <div style={{ width: 1, height: 18, background: 'rgba(0,0,0,0.08)', margin: '0 2px', flexShrink: 0 }} />
+              )}
+              <button
+                onClick={() => onToolChange(tool.type)}
+                className="w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center"
+                style={
+                  isActive
+                    ? { background: '#e8e8fc', color: '#5353c5' }
+                    : { color: '#1e1e1e' }
                 }
-              `}
-              title={tool.label}
-            >
-              {tool.icon}
-            </button>
-          ))}
-
-          {/* Placeholder for future tools to match mockup layout */}
-          <button className="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-700 transition-all flex items-center justify-center">
-            <Diamond size={18} />
-          </button>
-          <button className="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-700 transition-all flex items-center justify-center">
-            <Type size={18} />
-          </button>
-          <button className="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-700 transition-all flex items-center justify-center">
-            <Eraser size={18} />
-          </button>
-        </div>
+                onMouseEnter={e => {
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)';
+                }}
+                onMouseLeave={e => {
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                }}
+                title={tool.label}
+              >
+                {tool.icon}
+              </button>
+            </React.Fragment>
+          );
+        })}
       </div>
     </div>
   );

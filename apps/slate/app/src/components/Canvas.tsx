@@ -14,6 +14,7 @@ export default function Canvas() {
   const [activeTool, setActiveTool] = useState<ShapeType>('pencil');
   const [strokeColor, setStrokeColor] = useState('#000000');
   const [strokeWidth, setStrokeWidth] = useState(2);
+  const [strokeStyle, setStrokeStyle] = useState<'solid' | 'dashed' | 'dotted'>('solid');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
 
@@ -51,13 +52,14 @@ export default function Canvas() {
     }
   }, [activeTool]);
 
-  // onchange of strokeColor/strokeWidth - update engine
+  // onchange of strokeColor/strokeWidth/strokeStyle - update engine
   useEffect(() => {
     if (engineRef.current) {
       engineRef.current.setColor(strokeColor);
       engineRef.current.setWidth(strokeWidth);
+      engineRef.current.setStrokeStyle(strokeStyle);
     }
-  }, [strokeColor, strokeWidth]);
+  }, [strokeColor, strokeWidth, strokeStyle]);
 
   //undo redo actions+shortcut keys
   useEffect(() => {
@@ -127,6 +129,8 @@ export default function Canvas() {
         onColorChange={setStrokeColor}
         strokeWidth={strokeWidth}
         onWidthChange={setStrokeWidth}
+        strokeStyle={strokeStyle}
+        onStyleChange={setStrokeStyle}
         isSelected={!!selectedId}
       />
 
