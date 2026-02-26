@@ -5,18 +5,25 @@ import { SlateEngine } from '../canvas-engine/engine';
 import { ShapeType, ToolType } from '../config/types';
 import Toolbar from './ui/Toolbar';
 import Properties from './ui/Properties';
+import { Undo2, Redo2, Plus, Minus as MinusIcon, Search } from 'lucide-react';
 
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const engineRef = useRef<SlateEngine | null>(null);
+  const engineRef = useRef<any>(null);
 
-  const [activeTool, setActiveTool] = useState<ToolType>('pencil');
-  const [strokeColor, setStrokeColor] = useState('#000000');
+  const [activeTool, setActiveTool] = useState<ShapeType>('pencil');
+  const [strokeColor, setStrokeColor] = useState('#adb5bd');
   const [strokeWidth, setStrokeWidth] = useState(2);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(100);
 
   useEffect(() => {
     if (canvasRef.current && !engineRef.current) {
       engineRef.current = new SlateEngine(canvasRef.current);
+
+      // Sync engine state to React
+      engineRef.current.onZoomChange = (z: number) => setZoom(z);
+      engineRef.current.onSelectionChange = (s: any) => setSelectedId(s?.id || null);
     }
 
     const handleResize = () => {
@@ -33,14 +40,24 @@ export default function Canvas() {
     };
   }, []);
 
-  //onchange of active tool/color/width - update engine
+  // onchange of active tool - update engine and clear selection if needed
   useEffect(() => {
     if (engineRef.current) {
       engineRef.current.setTool(activeTool);
+      // Clear selection if not in select tool
+      if (activeTool !== 'select') {
+        setSelectedId(null);
+      }
+    }
+  }, [activeTool]);
+
+  // onchange of strokeColor/strokeWidth - update engine
+  useEffect(() => {
+    if (engineRef.current) {
       engineRef.current.setColor(strokeColor);
       engineRef.current.setWidth(strokeWidth);
     }
-  }, [activeTool, strokeColor, strokeWidth]);
+  }, [strokeColor, strokeWidth]);
 
   //undo redo actions+shortcut keys
   useEffect(() => {
@@ -107,11 +124,48 @@ export default function Canvas() {
         onColorChange={setStrokeColor}
         strokeWidth={strokeWidth}
         onWidthChange={setStrokeWidth}
+        isSelected={!!selectedId}
       />
+
+      {/* Bottom Left: History Controls */}
+      <div className="fixed bottom-6 left-6 z-50 flex items-center gap-1 p-1 bg-slate-100 border border-slate-200 rounded-xl shadow-lg">
+        <button
+          onClick={() => engineRef.current?.undo()}
+          className="p-2 text-slate-600 hover:bg-white hover:text-indigo-600 rounded-lg transition-all"
+          title="Undo (Ctrl+Z)"
+        >
+          <Undo2 size={18} />
+        </button>
+        <button
+          onClick={() => engineRef.current?.redo()}
+          className="p-2 text-slate-600 hover:bg-white hover:text-indigo-600 rounded-lg transition-all"
+          title="Redo (Ctrl+Y)"
+        >
+          <Redo2 size={18} />
+        </button>
+      </div>
+
+      {/* Bottom Center: Navigation Controls */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 px-4 py-2 bg-slate-100 border border-slate-200 rounded-xl shadow-lg text-slate-500 font-medium text-sm">
+        <button className="p-1 hover:text-indigo-600 transition-colors"><MinusIcon size={16} /></button>
+        <div className="flex items-center gap-1 min-w-[60px] justify-center">
+          {zoom}%
+        </div>
+        <button className="p-1 hover:text-indigo-600 transition-colors"><Plus size={16} /></button>
+      </div>
 
       <canvas
         ref={canvasRef}
-        className="fixed inset-0 w-full bg-slate-50 touch-none"
+        onMouseDown={(e) => {
+          engineRef.current?.handleMouseDown(e);
+          // Sync selection state if in select tool
+          if (activeTool === 'select') {
+            setSelectedId(engineRef.current?.selectedShape?.id || null);
+          } else {
+            setSelectedId(null);
+          }
+        }}
+        className="w-full h-full touch-none block"
         onContextMenu={(e) => e.preventDefault()}
       />
 
