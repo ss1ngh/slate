@@ -1369,6 +1369,7 @@ export class SlateEngine {
         switch (shape.type) {
             case 'rect':
             case 'image':
+            case 'text':
             case 'diamond': {
                 const minX = Math.min(shape.x, shape.x + shape.width);
                 const minY = Math.min(shape.y, shape.y + shape.height);
@@ -1439,7 +1440,7 @@ export class SlateEngine {
         const pad = 8;
         let bx: number, by: number, bx2: number, by2: number;
         switch (shape.type) {
-            case 'rect': case 'image': case 'diamond': {
+            case 'rect': case 'image': case 'text': case 'diamond': {
                 bx = Math.min(shape.x, shape.x + shape.width) - pad;
                 by = Math.min(shape.y, shape.y + shape.height) - pad;
                 bx2 = Math.max(shape.x, shape.x + shape.width) + pad;
@@ -1515,7 +1516,43 @@ export class SlateEngine {
             }
 
             if (shape.type === 'text' && orig.type === 'text') {
-                shape.fontSize = (orig as any).fontSize * Math.abs((shape.height || 1) / (origH || 1));
+                // Determine scale primarily from height, unless doing a purely horizontal resize
+                let scale = 1;
+                if (handle === 'l' || handle === 'r') {
+                    scale = Math.abs((shape.width || 1) / (origW || 1));
+                } else {
+                    scale = Math.abs((shape.height || 1) / (origH || 1));
+                }
+
+                shape.fontSize = Math.max(4, (orig as any).fontSize * scale);
+
+                // Recalculate precise dimensions
+                this.ctx.font = `${shape.fontSize}px sans-serif`;
+                let maxWidth = 0;
+                const lines = shape.text.split('\n');
+                for (const line of lines) {
+                    const metrics = this.ctx.measureText(line);
+                    if (metrics.width > maxWidth) maxWidth = metrics.width;
+                }
+
+                const calcWidth = maxWidth;
+                const calcHeight = shape.fontSize * 1.2 * lines.length;
+
+                // Fix anchor point so text grows in the direction of the handle
+                if (handle === 'tl' || handle === 'l' || handle === 'bl') {
+                    shape.x = oMaxX - calcWidth;
+                } else {
+                    shape.x = oMinX;
+                }
+
+                if (handle === 'tl' || handle === 't' || handle === 'tr') {
+                    shape.y = oMaxY - calcHeight;
+                } else {
+                    shape.y = oMinY;
+                }
+
+                shape.width = calcWidth;
+                shape.height = calcHeight;
             }
         }
 
