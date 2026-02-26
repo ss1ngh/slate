@@ -34,6 +34,29 @@ export class SlateEngine {
 
     private camera = { x: 0, y: 0, z: 1 }; // x, y : offset z : zoom level
 
+    public setZoom(deltaZ: number) {
+        let newZoom = this.camera.z + deltaZ;
+        newZoom = Math.max(0.1, Math.min(newZoom, 5));
+
+        // Calculate center of screen
+        const rect = this.canvas.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        // Convert screen center to world coordinates
+        const worldX = (centerX - this.camera.x) / this.camera.z;
+        const worldY = (centerY - this.camera.y) / this.camera.z;
+
+        this.camera.z = newZoom;
+
+        // Adjust pan so the center stays fixed
+        this.camera.x = centerX - worldX * newZoom;
+        this.camera.y = centerY - worldY * newZoom;
+
+        if (this.onZoomChange) this.onZoomChange(Math.round(this.camera.z * 100));
+        this.render();
+    }
+
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
         const context = canvas.getContext("2d", { alpha: false });

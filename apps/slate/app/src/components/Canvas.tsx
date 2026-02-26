@@ -153,13 +153,29 @@ export default function Canvas() {
         </button>
       </div>
 
-      {/* Bottom Center: Navigation Controls */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 px-4 py-2 bg-slate-100 border border-slate-200 rounded-xl shadow-lg text-slate-500 font-medium text-sm">
-        <button className="p-1 hover:text-indigo-600 transition-colors"><MinusIcon size={16} /></button>
-        <div className="flex items-center gap-1 min-w-[60px] justify-center">
+      {/* Bottom Right: Navigation Controls */}
+      <div className="fixed bottom-6 right-6 z-50 flex items-center gap-4 px-4 py-2 bg-white/95 backdrop-blur-xl border border-slate-200/50 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-slate-600 font-medium text-sm">
+        <button
+          onClick={() => engineRef.current?.setZoom(-0.25)}
+          className="p-1 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors"
+          title="Zoom Out"
+        >
+          <MinusIcon size={16} />
+        </button>
+        <button
+          onClick={() => engineRef.current?.setZoom(1 - (engineRef.current ? (engineRef.current as any).camera.z : 1))}
+          className="flex items-center gap-1 min-w-[50px] justify-center hover:text-indigo-600 cursor-pointer transition-colors"
+          title="Reset Zoom"
+        >
           {zoom}%
-        </div>
-        <button className="p-1 hover:text-indigo-600 transition-colors"><Plus size={16} /></button>
+        </button>
+        <button
+          onClick={() => engineRef.current?.setZoom(0.25)}
+          className="p-1 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors"
+          title="Zoom In"
+        >
+          <Plus size={16} />
+        </button>
       </div>
 
       <canvas
