@@ -1,4 +1,4 @@
-import { DiamondShape, Shape, ShapeType, ToolType } from "../config/types";
+import { DiamondShape, Shape, ShapeType, ToolType, ImageShape } from "../config/types";
 import { generateId } from "../config/utils";
 import { getStroke } from "perfect-freehand";
 
@@ -23,6 +23,7 @@ export class SlateEngine {
     private resizeOrigShape: Shape | null = null;
     private panStart = { x: 0, y: 0 };
     private dragStartPos = { x: 0, y: 0 };
+    private pendingImageSrc: string | null = null;
 
     private currentShape: Shape | null = null;
     public selectedShapes: Shape[] = [];
@@ -98,6 +99,13 @@ export class SlateEngine {
             if (this.onSelectionChange) this.onSelectionChange(null);
             this.render();
         }
+    }
+
+    public setPendingImage(src: string) {
+        this.pendingImageSrc = src;
+        this.setTool('image');
+        if (this.onToolChange) this.onToolChange('image');
+        this.canvas.style.cursor = 'crosshair';
     }
 
     public setColor(color: string) {
@@ -180,6 +188,45 @@ export class SlateEngine {
                 this.render();
             }
             this.isDrawing = true; // allow drag-erase
+            return;
+        }
+
+        if (this.selectedTool === 'image' && this.pendingImageSrc) {
+            const id = generateId();
+            const src = this.pendingImageSrc;
+            const img = new Image();
+            img.src = src;
+
+            const base = { id, x, y, strokeColor: this.strokeColor, strokeWidth: this.strokeWidth, strokeStyle: this.strokeStyle };
+            const newImageShape: ImageShape = {
+                ...base,
+                type: 'image',
+                src,
+                width: 100,
+                height: 100,
+                element: img
+            };
+
+            this.history.push([...this.shapes]);
+            this.shapes.push(newImageShape);
+            this.redoStack = [];
+
+            this.selectedShapes = [newImageShape];
+            if (this.onSelectionChange) this.onSelectionChange(newImageShape);
+            this.selectedTool = 'select';
+            if (this.onToolChange) this.onToolChange('select');
+
+            this.pendingImageSrc = null;
+            this.canvas.style.cursor = 'default';
+
+            img.onload = () => {
+                newImageShape.width = img.naturalWidth;
+                newImageShape.height = img.naturalHeight;
+                this.render();
+                this.saveToLocalStorage();
+            };
+
+            this.render();
             return;
         }
 
@@ -447,6 +494,7 @@ export class SlateEngine {
     private moveShape(shape: Shape, dx: number, dy: number) {
         switch (shape.type) {
             case 'rect':
+            case 'image':
             case 'diamond':
             case 'circle':
             case 'line':
@@ -481,6 +529,7 @@ export class SlateEngine {
 
         switch (child.type) {
             case 'rect':
+            case 'image':
             case 'diamond':
                 child.x = newGroupX + relX * scaleX;
                 child.y = newGroupY + relY * scaleY;
@@ -553,6 +602,7 @@ export class SlateEngine {
 
         switch (shape.type) {
             case 'rect':
+            case 'image':
             case 'diamond':
                 maxX = shape.x + Math.max(0, shape.width);
                 maxY = shape.y + Math.max(0, shape.height);
@@ -598,7 +648,8 @@ export class SlateEngine {
             if (!shape) continue;
 
             switch (shape.type) {
-                case 'rect': {
+                case 'rect':
+                case 'image': {
                     const minX = Math.min(shape.x, shape.x + shape.width);
                     const maxX = Math.max(shape.x, shape.x + shape.width);
                     const minY = Math.min(shape.y, shape.y + shape.height);
@@ -713,6 +764,7 @@ export class SlateEngine {
 
         switch (shape.type) {
             case 'rect':
+            case 'image':
                 bx = Math.min(shape.x, shape.x + shape.width) - padding;
                 by = Math.min(shape.y, shape.y + shape.height) - padding;
                 bw = Math.abs(shape.width) + padding * 2;
@@ -797,6 +849,22 @@ export class SlateEngine {
                 break;
             case "rect":
                 this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+                break;
+            case "image":
+                if (shape.element && shape.element.complete) {
+                    this.ctx.drawImage(shape.element, shape.x, shape.y, shape.width, shape.height);
+                } else if (!shape.element) {
+                    const img = new Image();
+                    img.src = shape.src;
+                    shape.element = img;
+                    img.onload = () => this.render();
+                } else {
+                    this.ctx.fillStyle = '#f1f5f9';
+                    this.ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+                }
+                if (shape.strokeWidth > 0 && shape.strokeColor !== 'transparent') {
+                    this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+                }
                 break;
             case "diamond": {
                 const cx = shape.x + shape.width / 2;
@@ -1180,6 +1248,7 @@ export class SlateEngine {
     private getHandlePositions(shape: Shape): { id: string; x: number; y: number }[] {
         switch (shape.type) {
             case 'rect':
+            case 'image':
             case 'diamond': {
                 const minX = Math.min(shape.x, shape.x + shape.width);
                 const minY = Math.min(shape.y, shape.y + shape.height);
@@ -1232,6 +1301,7 @@ export class SlateEngine {
                 ];
             }
         }
+        return [];
     }
 
     private hitTestHandle(shape: Shape, px: number, py: number): string | null {
@@ -1249,7 +1319,7 @@ export class SlateEngine {
         const pad = 8;
         let bx: number, by: number, bx2: number, by2: number;
         switch (shape.type) {
-            case 'rect': case 'diamond': {
+            case 'rect': case 'image': case 'diamond': {
                 bx = Math.min(shape.x, shape.x + shape.width) - pad;
                 by = Math.min(shape.y, shape.y + shape.height) - pad;
                 bx2 = Math.max(shape.x, shape.x + shape.width) + pad;
@@ -1298,8 +1368,8 @@ export class SlateEngine {
         const handle = this.resizeHandle;
         if (!shape || !orig || !handle) return;
 
-        if ((orig.type === 'rect' || orig.type === 'diamond' || orig.type === 'group') &&
-            (shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'group')) {
+        if ((orig.type === 'rect' || orig.type === 'diamond' || orig.type === 'group' || orig.type === 'image') &&
+            (shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'group' || shape.type === 'image')) {
             const oMinX = Math.min(orig.x, orig.x + orig.width);
             const oMinY = Math.min(orig.y, orig.y + orig.height);
             const oMaxX = Math.max(orig.x, orig.x + orig.width);

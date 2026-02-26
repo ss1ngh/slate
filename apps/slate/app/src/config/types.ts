@@ -1,5 +1,5 @@
-export type ToolType = 'select' | 'rect' | 'circle' | 'line' | 'arrow' | 'pencil' | 'hand' | 'eraser' | 'diamond';
-export type ShapeType = 'rect' | 'circle' | 'line' | 'arrow' | 'pencil' | 'select' | 'hand' | 'eraser' | 'diamond' | 'group';
+export type ToolType = 'select' | 'rect' | 'circle' | 'line' | 'arrow' | 'pencil' | 'hand' | 'eraser' | 'diamond' | 'image';
+export type ShapeType = 'rect' | 'circle' | 'line' | 'arrow' | 'pencil' | 'select' | 'hand' | 'eraser' | 'diamond' | 'group' | 'image';
 
 export interface BaseShape {
   id: string;
@@ -46,4 +46,12 @@ export interface GroupShape extends BaseShape {
   height: number;
 }
 
-export type Shape = RectShape | DiamondShape | CircleShape | LineShape | PencilShape | GroupShape;
+export interface ImageShape extends BaseShape {
+  type: 'image';
+  src: string;
+  width: number;
+  height: number;
+  element?: HTMLImageElement; // Optional cached image element
+}
+
+export type Shape = RectShape | DiamondShape | CircleShape | LineShape | PencilShape | GroupShape | ImageShape;

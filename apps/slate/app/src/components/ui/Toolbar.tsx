@@ -10,6 +10,7 @@ import {
   Hand,
   Diamond,
   Eraser,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -26,6 +27,7 @@ const tools: { type: ShapeType; icon: React.ReactNode; label: string }[] = [
   { type: 'circle', icon: <CircleIcon size={16} />, label: 'Circle (C)' },
   { type: 'line', icon: <Minus size={16} />, label: 'Line (L)' },
   { type: 'arrow', icon: <ArrowUpRight size={16} />, label: 'Arrow (A)' },
+  { type: 'image', icon: <ImageIcon size={16} />, label: 'Image (I)' },
   { type: 'eraser', icon: <Eraser size={16} />, label: 'Eraser (E)' },
 ];
 

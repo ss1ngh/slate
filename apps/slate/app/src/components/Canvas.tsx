@@ -10,6 +10,7 @@ import { Undo2, Redo2, Plus, Minus as MinusIcon, Search } from 'lucide-react';
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTool, setActiveTool] = useState<ShapeType>('pencil');
   const [strokeColor, setStrokeColor] = useState('#000000');
@@ -53,6 +54,10 @@ export default function Canvas() {
       // Clear selection if not in select tool
       if (activeTool !== 'select') {
         setSelectedIds([]);
+      }
+
+      if (activeTool === 'image') {
+        fileInputRef.current?.click();
       }
     }
   }, [activeTool]);
@@ -122,6 +127,7 @@ export default function Canvas() {
         case 'c': setActiveTool('circle'); break;
         case 'l': setActiveTool('line'); break;
         case 'a': setActiveTool('arrow'); break;
+        case 'i': setActiveTool('image'); break;
         case 'e': setActiveTool('eraser'); break;
       }
     };
@@ -134,6 +140,26 @@ export default function Canvas() {
   //render DOM element
   return (
     <div className='relative w-full h-screen'>
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const src = ev.target?.result as string;
+              if (engineRef.current) {
+                engineRef.current.setPendingImage(src);
+              }
+            };
+            reader.readAsDataURL(file);
+          }
+          e.target.value = '';
+        }}
+      />
 
       <Toolbar
         activeTool={activeTool}
