@@ -1,135 +1,83 @@
-# Turborepo starter
+# Slate
 
-This Turborepo starter is maintained by the Turborepo core team.
+Slate is a fast, local-first, and highly intuitive browser-based drawing and sketching application. Built with a custom HTML5 Canvas rendering engine, it offers a seamless whiteboarding experience right in your browser.
 
-## Using this example
+![Slate Preview](./apps/slate/public/icon.svg)
 
-Run the following command:
+## Features
 
-```sh
-npx create-turbo@latest
+*   **Rich Drawing Tools**: Freehand pencil (powered by `perfect-freehand` for pressure-sensitive, weight-based ink), rectangles, diamonds, circles, straight lines, arrows, text blocks, and an eraser.
+*   **Customization**: Easily change stroke colors, stroke widths (thin, bold, extra), and line styles (solid, dashed, dotted).
+*   **Infinite Canvas**: Pan around the canvas and zoom in/out to focus on specific details.
+*   **Layer Management**: Bring shapes to the front or send them to the back.
+*   **Grouping**: Group multiple shapes together to move, scale, and manage them as a single unit.
+*   **History**: Full Undo and Redo support (`Ctrl+Z` / `Ctrl+Y`).
+*   **Local Persistence**: Your drawings are automatically saved to your browser's local storage so you never lose your work.
+*   **Import/Export**: Add images to your canvas or export your entire drawing as a high-quality PNG.
+
+## Tech Stack
+
+*   **Framework**: [Next.js](https://nextjs.org/) (React)
+*   **Monorepo Tooling**: [Turborepo](https://turbo.build/repo)
+*   **Language**: [TypeScript](https://www.typescriptlang.org/)
+*   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+*   **Icons**: [Lucide React](https://lucide.dev/)
+*   **Drawing Utilities**: [perfect-freehand](https://github.com/steveruizok/perfect-freehand) for smooth, variable-width freehand strokes.
+*   **Core Engine**: Native HTML5 Canvas API (`SlateEngine`)
+
+## Folder Structure
+
+This project is structured as a monorepo using Turborepo.
+
+```text
+slate/
+├── apps/
+│   └── slate/                    # Main Next.js application
+│       ├── public/               # Static assets & icons
+│       └── app/
+│           ├── src/
+│           │   ├── canvas-engine/ # Core vanilla TS engine (engine.ts)
+│           │   ├── components/    # React UI (Toolbar, Properties, Canvas)
+│           │   └── config/        # Types, constants, tools
+│           ├── layout.tsx         # Next.js app layout
+│           └── page.tsx           # Main page entry point
+├── packages/
+│   ├── @repo/ui/                 # Shared React components library
+│   ├── @repo/eslint-config/      # Shared ESLint configuration
+│   └── @repo/typescript-config/  # Shared tsconfig settings
+├── package.json
+└── turbo.json                    # Workspace task runner config
 ```
 
-## What's inside?
+## Project Setup
 
-This Turborepo includes the following packages/apps:
+### Prerequisites
 
-### Apps and Packages
+You need Node.js installed on your machine.
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+### Installation
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+Clone the repository and install the dependencies from the root directory:
 
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+```bash
+npm install
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+### Running Locally
 
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
+To start the development server, run:
 
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+```bash
+npm run dev
 ```
 
-### Develop
+This will run the Next.js app in development mode. Open [http://localhost:3000](http://localhost:3000) in your browser to start drawing.
 
-To develop all apps and packages, run the following command:
+### Build for Production
 
-```
-cd my-turborepo
+To build all apps and packages for production:
 
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
+```bash
+npm run build
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
