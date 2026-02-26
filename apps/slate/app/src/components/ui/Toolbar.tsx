@@ -7,7 +7,7 @@ import {
   ArrowUpRight,
   Pencil,
   MousePointer2,
-  Hand,
+  Pointer,
   Diamond,
   Eraser,
   Image as ImageIcon,
@@ -19,7 +19,7 @@ interface ToolbarProps {
 }
 
 const tools: { type: ShapeType; icon: React.ReactNode; label: string }[] = [
-  { type: 'hand', icon: <Hand size={16} />, label: 'Hand — pan canvas (H)' },
+  { type: 'hand', icon: <Pointer size={16} />, label: 'Hand — pan canvas (H)' },
   { type: 'select', icon: <MousePointer2 size={16} />, label: 'Select (V)' },
   { type: 'pencil', icon: <Pencil size={16} />, label: 'Pencil (P)' },
   { type: 'rect', icon: <Square size={16} />, label: 'Rectangle (R)' },

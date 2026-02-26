@@ -1,0 +1,16 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded rectangle styling to match the Guide Page (bg-indigo-600 rounded-xl) -->
+  <rect width="64" height="64" rx="16" fill="#4f46e5" />
+  
+  <!-- Centered Lucide Pen icon -->
+  <!-- scale(1.33) enlarges 24px icon to 32px. translation centers it via (64 - 32) / 2 = 16 -->
+  <g transform="translate(16, 16) scale(1.3333)">
+    <path 
+      d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" 
+      stroke="white" 
+      stroke-width="2" 
+      stroke-linecap="round" 
+      stroke-linejoin="round"
+    />
+  </g>
+</svg>
