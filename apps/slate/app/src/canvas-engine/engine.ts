@@ -43,13 +43,13 @@ export class SlateEngine {
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
 
-        // Convert screen center to world coordinates
+        //convert screen center to world coordinates
         const worldX = (centerX - this.camera.x) / this.camera.z;
         const worldY = (centerY - this.camera.y) / this.camera.z;
 
         this.camera.z = newZoom;
 
-        // Adjust pan so the center stays fixed
+        //adjust pan so the center stays fixed
         this.camera.x = centerX - worldX * newZoom;
         this.camera.y = centerY - worldY * newZoom;
 
@@ -540,7 +540,7 @@ export class SlateEngine {
         const pz = this.camera.z;
 
         //bounding box
-        this.ctx.strokeStyle = "#93c5fd";
+        this.ctx.strokeStyle = "#818cf8";
         this.ctx.lineWidth = 1.5 / pz;
         this.ctx.setLineDash([5 / pz, 4 / pz]);
 
@@ -587,8 +587,8 @@ export class SlateEngine {
 
         //draw resize handles
         this.ctx.setLineDash([]);
-        this.ctx.strokeStyle = '#93c5fd';
-        this.ctx.fillStyle = '#eff6ff';
+        this.ctx.strokeStyle = '#818cf8';
+        this.ctx.fillStyle = '#ffffff';
         this.ctx.lineWidth = 1.5 / pz;
         const hs = 5 / pz; // half-size of handle square in world units
 
@@ -820,8 +820,8 @@ export class SlateEngine {
         this.render();
     }
 
-    // ── Resize helpers ────────────────────────────────────────────────────
 
+    //resize
     private getHandlePositions(shape: Shape): { id: string; x: number; y: number }[] {
         switch (shape.type) {
             case 'rect':
@@ -869,13 +869,13 @@ export class SlateEngine {
     private hitTestHandle(shape: Shape, px: number, py: number): string | null {
         const HIT = 9 / this.camera.z;
 
-        // 1. Small handle squares (high priority)
+        //small handle squares (high priority)
         for (const h of this.getHandlePositions(shape)) {
             if (Math.abs(px - h.x) <= HIT && Math.abs(py - h.y) <= HIT) return h.id;
         }
 
-        // 2. Proximity to the full selection bounding box border
-        // (skipped for line/arrow — they only have endpoint handles)
+        //proximity to the full selection bounding box border
+        //skipped for line/arrow — they only have endpoint handles
         if (shape.type === 'line' || shape.type === 'arrow') return null;
 
         const pad = 8;
@@ -910,12 +910,12 @@ export class SlateEngine {
         const inX = px >= bx - EDGE && px <= bx2 + EDGE;
         const inY = py >= by - EDGE && py <= by2 + EDGE;
 
-        // Corners first
+        //corners first
         if (nearT && nearL) return 'tl';
         if (nearT && nearR) return 'tr';
         if (nearB && nearL) return 'bl';
         if (nearB && nearR) return 'br';
-        // Edges — only if within the bbox span
+        //edges — only if within the bbox span
         if (nearT && inX) return 't';
         if (nearB && inX) return 'b';
         if (nearL && inY) return 'l';
