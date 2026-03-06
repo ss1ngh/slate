@@ -2,7 +2,7 @@
 
 Slate is a fast, local-first, and highly intuitive browser-based drawing and sketching application. Built with a custom HTML5 Canvas rendering engine, it offers a seamless whiteboarding experience right in your browser.
 
-![Slate Preview](./apps/slate/public/icon.svg)
+<img width="1919" height="876" alt="image" src="https://github.com/user-attachments/assets/dd625597-ce90-430d-af74-169cad95220e" />
 
 ## Features
 
