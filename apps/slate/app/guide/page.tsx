@@ -1,5 +1,5 @@
-'use client'
-
+import type { ElementType } from 'react';
+import type { Metadata } from 'next';
 import {
     Pen,
     Hand,
@@ -20,12 +20,18 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 
+export const metadata: Metadata = {
+    title: 'Guide',
+    description: 'How to use the Slate whiteboard app — tools, shortcuts, and advanced features.',
+};
+
+
 const FeatureCard = ({
     icon: Icon,
     title,
     description
 }: {
-    icon: React.ElementType;
+    icon: ElementType;
     title: string;
     description: string;
 }) => (

@@ -13,8 +13,25 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Slate",
-  description: "Collaborative whiteboard app",
+  title: {
+    default: 'Slate — Infinite Whiteboard',
+    template: '%s — Slate',
+  },
+  description:
+    'A fast, browser-based infinite whiteboard. Draw shapes, add text, and annotate — no account needed. All data saved locally.',
+  keywords: ['whiteboard', 'drawing', 'canvas', 'infinite canvas', 'annotations', 'sketch'],
+  openGraph: {
+    title: 'Slate — Infinite Whiteboard',
+    description: 'A fast, browser-based infinite whiteboard. No account needed.',
+    type: 'website',
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Slate — Infinite Whiteboard',
+    description: 'A fast, browser-based infinite whiteboard. No account needed.',
+  },
+  themeColor: '#4f46e5',
 };
 
 export default function RootLayout({
