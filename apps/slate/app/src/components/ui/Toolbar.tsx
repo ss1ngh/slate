@@ -1,5 +1,5 @@
 import React from 'react'
-import { ShapeType } from '../../config/types'
+import { ShapeType } from '@repo/shared';
 import {
   Square,
   Circle as CircleIcon,
