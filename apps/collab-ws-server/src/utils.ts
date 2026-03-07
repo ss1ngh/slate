@@ -53,6 +53,7 @@ export function cleanupPeer(ws: WebSocket) {
     if (peer.isHost && room.peers.size > 0) {
         const next = [...room.peers.values()][0]!;
         next.isHost = true;
+        send(next.ws, { type: 'host-promoted' });
         console.log(`[${peer.roomId}] ${next.userName} promoted to host`);
     }
 

@@ -14,7 +14,10 @@ export type ClientMessage =
     | { type: 'shape-add'; shape: Shape }
     | { type: 'shape-update'; shape: Shape }
     | { type: 'shape-delete'; shapeId: string }
-    | { type: 'full-sync'; shapes: Shape[]; targetId?: string };
+    | { type: 'full-sync'; shapes: Shape[]; targetId?: string }
+    | { type: 'drawing-lock' }
+    | { type: 'drawing-unlock' }
+    | { type: 'canvas-clear' };
 
 // Server → Client
 export type ServerMessage =
@@ -28,4 +31,8 @@ export type ServerMessage =
     | { type: 'shape-delete'; shapeId: string }
     | { type: 'request-sync'; requesterId: string }
     | { type: 'full-sync'; shapes: Shape[]; targetId?: string }
+    | { type: 'host-promoted' }
+    | { type: 'peer-drawing-start'; userId: string; userName: string }
+    | { type: 'peer-drawing-end'; userId: string }
+    | { type: 'peer-canvas-clear'; userId: string; userName: string }
     | { type: 'error'; message: string };

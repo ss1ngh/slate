@@ -2,10 +2,13 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { SlateEngine } from '../canvas-engine/engine';
-import { ShapeType, ToolType } from '../config/types';
+import { ShapeType, ToolType } from '@repo/shared';
 import Toolbar from './ui/Toolbar';
 import Properties from './ui/Properties';
-import { Undo2, Redo2, Plus, Minus as MinusIcon, Search, HelpCircle, Trash2, Download, Upload, Menu } from 'lucide-react';
+import CollabModal from './ui/CollabModal';
+import RemoteCursors from './RemoteCursors';
+import { useCollab } from '../hooks/useCollab';
+import { Undo2, Redo2, Plus, Minus as MinusIcon, Search, HelpCircle, Trash2, Download, Upload, Menu, Users, Copy, Check, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { Caveat } from 'next/font/google';
 
@@ -26,6 +29,27 @@ export default function Canvas() {
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [shapeCount, setShapeCount] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isCollabModalOpen, setIsCollabModalOpen] = useState(false);
+  const [copiedRoomId, setCopiedRoomId] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
+
+  const collab = useCollab(engineRef);
+  const { remoteDrawingUser, remoteClearEvent, acceptRemoteClear } = collab;
+
+  // Sliding toast for drawing lock
+  const [drawingToast, setDrawingToast] = useState<{ name: string; visible: boolean } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    if (remoteDrawingUser) {
+      setDrawingToast({ name: remoteDrawingUser.userName, visible: true });
+    } else {
+      setDrawingToast(prev => prev ? { ...prev, visible: false } : null);
+      toastTimerRef.current = setTimeout(() => setDrawingToast(null), 350);
+    }
+    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); };
+  }, [remoteDrawingUser]);
+
   useEffect(() => {
     if (canvasRef.current && !engineRef.current) {
       engineRef.current = new SlateEngine(canvasRef.current);
@@ -170,12 +194,57 @@ export default function Canvas() {
               <Download size={16} />
               <span>Export as PNG</span>
             </button>
+            <button
+              onClick={() => {
+                setIsCollabModalOpen(true);
+                setIsMenuOpen(false);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 text-slate-700 hover:text-indigo-600 hover:bg-slate-50 transition-colors text-sm w-full text-left"
+            >
+              <Users size={16} />
+              <span>Collaborate</span>
+            </button>
           </div>
         )}
       </div>
+      {/* Top Right: Room Status Chip */}
+      {collab.roomId && (
+        <div className="fixed top-3 right-4 z-50 flex items-center gap-2 px-3 py-1.5 bg-white/95 backdrop-blur-xl border border-indigo-200 rounded-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.08)] text-sm">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-mono font-bold text-slate-700 tracking-widest">{collab.roomId}</span>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(collab.roomId!);
+              setCopiedRoomId(true);
+              setTimeout(() => setCopiedRoomId(false), 2000);
+            }}
+            className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+            title="Copy Room ID"
+          >
+            {copiedRoomId ? <Check size={13} /> : <Copy size={13} />}
+          </button>
+          <div className="w-px h-4 bg-slate-200" />
+          {collab.peers.map(p => (
+            <div
+              key={p.userId}
+              title={p.userName}
+              className="w-5 h-5 rounded-full border-2 border-white shadow-sm text-[9px] flex items-center justify-center text-white font-bold"
+              style={{ backgroundColor: p.userColor }}
+            >
+              {p.userName[0]?.toUpperCase()}
+            </div>
+          ))}
+          <button
+            onClick={() => collab.leaveRoom()}
+            className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+            title="Leave Room"
+          >
+            <LogOut size={13} />
+          </button>
+        </div>
+      )}
 
-      {/* empty State Overlay */}
-      {shapeCount === 0 && (
+      {shapeCount === 0 && !hasInteracted && !remoteDrawingUser && (
         <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-40 mt-12">
           <div className="text-center mb-16 flex flex-col items-center">
             <div className="flex items-center gap-4 mb-2 mt-30">
@@ -251,6 +320,9 @@ export default function Canvas() {
         activeTool={activeTool}
         onToolChange={setActiveTool}
       />
+
+      {/* Remote cursors overlay */}
+      <RemoteCursors cursors={collab.remoteCursors} />
 
       {/* only show properties bar when a shape is selected */}
       {selectedIds.length > 0 && (
@@ -334,7 +406,11 @@ export default function Canvas() {
 
       <canvas
         ref={canvasRef}
+        onMouseMove={(e) => {
+          collab.sendCursor(e.clientX, e.clientY);
+        }}
         onMouseDown={(e) => {
+          setHasInteracted(true);
           engineRef.current?.handleMouseDown(e);
           // Sync selection state if in select tool
           if (activeTool === 'select' && engineRef.current) {
@@ -347,6 +423,35 @@ export default function Canvas() {
         className="w-full h-full touch-none block"
         onContextMenu={(e) => e.preventDefault()}
       />
+
+      {/* Drawing lock overlay — invisible blocker while someone is drawing */}
+      {remoteDrawingUser && (
+        <div className="fixed inset-0 z-[60]" style={{ cursor: 'not-allowed', pointerEvents: 'all' }}>
+          <div className="absolute inset-0 bg-indigo-50/10" />
+        </div>
+      )}
+
+      {/* Sliding toast — just below toolbar */}
+      {drawingToast && (
+        <div
+          className="fixed left-1/2 z-[200] pointer-events-none"
+          style={{
+            top: '56px',
+            transform: `translateX(-50%) translateY(${drawingToast.visible ? '0' : '-150%'})`,
+            opacity: drawingToast.visible ? 1 : 0,
+            transition: 'transform 0.32s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s ease',
+          }}
+        >
+          <div className="flex items-center gap-2.5 px-4 py-2 bg-white border border-indigo-200 rounded-xl shadow-[0_8px_24px_rgba(99,102,241,0.18)] text-sm text-slate-700 select-none whitespace-nowrap">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
+            </span>
+            <span className="font-semibold text-indigo-600">{drawingToast.name}</span>
+            <span className="text-slate-500">is drawing…</span>
+          </div>
+        </div>
+      )}
 
       {/* Clear Canvas Modal */}
       {isClearModalOpen && (
@@ -369,6 +474,7 @@ export default function Canvas() {
                 onClick={() => {
                   engineRef.current?.clearCanvas();
                   setIsClearModalOpen(false);
+                  setHasInteracted(false);
                 }}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm"
               >
@@ -377,6 +483,52 @@ export default function Canvas() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Remote Clear Prompt Modal */}
+      {remoteClearEvent && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">Canvas Cleared</h3>
+              <p className="text-slate-600 text-sm mb-4">
+                <span className="font-semibold text-indigo-600">{remoteClearEvent.userName}</span> has cleared the canvas.
+                Would you like to save a copy of the current drawing before it disappears?
+              </p>
+            </div>
+            <div className="bg-slate-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  acceptRemoteClear();
+                  setHasInteracted(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Discard current canvas"
+              >
+                Clear Now
+              </button>
+              <button
+                onClick={() => {
+                  engineRef.current?.downloadImage();
+                  acceptRemoteClear();
+                  setHasInteracted(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm flex items-center gap-2"
+              >
+                <Download size={16} />
+                Save Image & Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collab Modal */}
+      {isCollabModalOpen && (
+        <CollabModal
+          onClose={() => setIsCollabModalOpen(false)}
+          collab={collab}
+        />
       )}
 
     </div>

@@ -29,6 +29,14 @@ export class SlateEngine {
     public onSceneChange?: (count: number) => void;
     private selectionBox: { x: number, y: number, w: number, h: number } | null = null;
     private isBoxSelecting: boolean = false;
+    public onShapeAdd?: (shape: Shape) => void;
+    public onShapeUpdate?: (shape: Shape) => void;
+    public onShapeDelete?: (ids: string[]) => void;
+    public onShapePreview?: (shape: Shape) => void;
+    public onDrawingStart?: () => void;
+    public onDrawingEnd?: () => void;
+    public onCanvasClear?: () => void;
+    private lastPreviewAt: number = 0;
 
     private selectedTool: ToolType = 'pencil';
     private strokeColor: string = "#000000";
@@ -69,6 +77,10 @@ export class SlateEngine {
         this.initDPI();
         this.attachListeners();
         this.loadFromLocalStorage();
+    }
+
+    public getShapes(): Shape[] {
+        return this.shapes;
     }
 
     private initDPI() {
@@ -224,6 +236,7 @@ export class SlateEngine {
                 if (this.onSelectionChange) this.onSelectionChange(newTextShape);
                 this.redoStack = [];
                 this.saveToLocalStorage();
+                if (this.onShapeAdd) this.onShapeAdd(newTextShape);
                 this.render();
             }
             if (textarea.parentNode) {
@@ -308,8 +321,11 @@ export class SlateEngine {
                 newImageShape.height = img.naturalHeight;
                 this.render();
                 this.saveToLocalStorage();
+                if (this.onShapeUpdate) this.onShapeUpdate(newImageShape);
             };
 
+            // Broadcast the image shape immediately (with placeholder 100×100 size)
+            if (this.onShapeAdd) this.onShapeAdd(newImageShape);
             this.render();
             return;
         }
@@ -370,6 +386,7 @@ export class SlateEngine {
 
         this.isDrawing = true;
         const id = generateId();
+        if (this.onDrawingStart) this.onDrawingStart();
 
         const base = { id, x, y, strokeColor: this.strokeColor, strokeWidth: this.strokeWidth, strokeStyle: this.strokeStyle };
 
@@ -488,6 +505,16 @@ export class SlateEngine {
                 this.pathCache.set(this.currentShape, this.getSvgPathFromStroke(this.currentShape.points));
                 break;
         }
+
+        // Stream in-progress shape to collaborators (~60fps throttle)
+        if (this.onShapePreview) {
+            const now = performance.now();
+            if (now - this.lastPreviewAt >= 16) {
+                this.lastPreviewAt = now;
+                this.onShapePreview({ ...this.currentShape } as Shape);
+            }
+        }
+
         this.render();
     }
 
@@ -537,6 +564,7 @@ export class SlateEngine {
             this.resizeHandle = null;
             this.resizeOrigShape = null;
             this.saveToLocalStorage();
+            if (this.onShapeUpdate && this.selectedShapes[0]) this.onShapeUpdate(this.selectedShapes[0]);
             this.render();
             return;
         }
@@ -555,10 +583,15 @@ export class SlateEngine {
             this.canvas.style.cursor = 'default';
 
             this.saveToLocalStorage();
+            if (this.onShapeAdd) this.onShapeAdd(drawn);
+            if (this.onDrawingEnd) this.onDrawingEnd();
         }
 
         if (this.isDragging) {
             this.saveToLocalStorage();
+            if (this.onShapeUpdate && this.selectedShapes.length === 1 && this.selectedShapes[0]) {
+                this.onShapeUpdate(this.selectedShapes[0]);
+            }
         }
 
         this.isDrawing = false;
@@ -577,6 +610,7 @@ export class SlateEngine {
         this.shapes = this.shapes.filter(s => !idsToDelete.has(s.id));
         this.selectedShapes = [];
         this.redoStack = [];
+        if (this.onShapeDelete) this.onShapeDelete([...idsToDelete]);
 
         this.saveToLocalStorage();
         this.render();
@@ -1149,21 +1183,27 @@ export class SlateEngine {
         }
     }
 
-    public exportImage() {
+    public async downloadImage() {
         if (this.shapes.length === 0) return;
 
-        // Calculate global bounding box
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
         for (const shape of this.shapes) {
             const bounds = this.getShapeBounds(shape);
-            if (bounds.minX < minX) minX = bounds.minX;
-            if (bounds.minY < minY) minY = bounds.minY;
-            if (bounds.maxX > maxX) maxX = bounds.maxX;
-            if (bounds.maxY > maxY) maxY = bounds.maxY;
+            if (!bounds) continue;
+            minX = Math.min(minX, bounds.minX);
+            minY = Math.min(minY, bounds.minY);
+            maxX = Math.max(maxX, bounds.maxX);
+            maxY = Math.max(maxY, bounds.maxY);
         }
 
-        // Add padding
-        const padding = 40;
+        if (minX === Infinity) return;
+
+        // Add some padding
+        const padding = 20;
         minX -= padding;
         minY -= padding;
         maxX += padding;
@@ -1171,8 +1211,6 @@ export class SlateEngine {
 
         const width = maxX - minX;
         const height = maxY - minY;
-
-        // Use a high scale for high resolution output
         const exportScale = 3;
 
         const offscreenCanvas = document.createElement('canvas');
@@ -1195,11 +1233,35 @@ export class SlateEngine {
             this.draw(shape, ctx);
         }
 
-        // Trigger download
+        // Try modern File System Access API
+        try {
+            if ('showSaveFilePicker' in window) {
+                const blob = await new Promise<Blob | null>(resolve => offscreenCanvas.toBlob(resolve, 'image/png'));
+                if (!blob) throw new Error("Could not generate canvas blob");
+
+                const handle = await (window as any).showSaveFilePicker({
+                    suggestedName: `slate_drawing_${Date.now()}.png`,
+                    types: [{
+                        description: 'PNG Image',
+                        accept: { 'image/png': ['.png'] },
+                    }],
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                return; // Successfully saved
+            }
+        } catch (err: any) {
+            // If the user cancelled the dialog, we just abort silently without falling back
+            if (err.name === 'AbortError') return;
+            console.error("Save picker failed, falling back to auto-download:", err);
+        }
+
+        // Fallback for older browsers
         const dataUrl = offscreenCanvas.toDataURL('image/png', 1.0);
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataUrl);
-        downloadAnchorNode.setAttribute("download", "slate_drawing_" + Date.now() + ".png");
+        downloadAnchorNode.setAttribute("download", `slate_drawing_${Date.now()}.png`);
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
@@ -1353,6 +1415,16 @@ export class SlateEngine {
         this.redoStack = [];
 
         this.saveToLocalStorage();
+        if (this.onCanvasClear) this.onCanvasClear();
+        this.render();
+    }
+
+    public applyRemoteCanvasClear() {
+        this.history.push([...this.shapes]);
+        this.shapes = [];
+        this.selectedShapes = [];
+        this.redoStack = [];
+        this.saveToLocalStorage();
         this.render();
     }
 
@@ -1387,6 +1459,7 @@ export class SlateEngine {
 
         // remove grouped shapes from main shapes array
         const idsToRemove = new Set(this.selectedShapes.map(s => s.id));
+        if (this.onShapeDelete) this.onShapeDelete([...idsToRemove]);
         this.shapes = this.shapes.filter(s => !idsToRemove.has(s.id));
 
         // add group shape
@@ -1394,6 +1467,7 @@ export class SlateEngine {
         this.selectedShapes = [groupShape];
 
         if (this.onSelectionChange) this.onSelectionChange(groupShape);
+        if (this.onShapeAdd) this.onShapeAdd(groupShape);
 
         this.saveToLocalStorage();
         this.render();
@@ -1442,6 +1516,7 @@ export class SlateEngine {
         });
 
         // remove group shape
+        if (this.onShapeDelete) this.onShapeDelete([group.id]);
         this.shapes = this.shapes.filter(s => s.id !== group.id);
 
         // add children
@@ -1451,6 +1526,9 @@ export class SlateEngine {
         if (this.onSelectionChange) {
             this.onSelectionChange(this.selectedShapes[0] || null);
         }
+        updatedChildren.forEach(child => {
+            if (this.onShapeAdd) this.onShapeAdd(child);
+        });
 
         this.saveToLocalStorage();
         this.render();
@@ -1679,5 +1757,53 @@ export class SlateEngine {
             }));
             this.pathCache.set(shape, this.getSvgPathFromStroke(shape.points));
         }
+    }
+
+    // --- Collab: apply remote events without triggering local callbacks ---
+
+    public applyRemoteShapeAdd(shape: Shape): void {
+        // Reconstruct the Image element for image shapes (it is stripped during JSON serialisation)
+        if (shape.type === 'image') {
+            const img = new Image();
+            img.src = shape.src;
+            shape.element = img;
+            img.onload = () => this.render();
+        }
+        const idx = this.shapes.findIndex(s => s.id === shape.id);
+        if (idx !== -1) {
+            // A preview already exists from streaming — overwrite with the committed final shape
+            this.shapes[idx] = shape;
+        } else {
+            this.shapes.push(shape);
+        }
+        this.render();
+    }
+
+    public applyRemoteShapeUpdate(shape: Shape): void {
+        // Re-attach the cached image element for image shapes so they render
+        if (shape.type === 'image') {
+            const existing = this.shapes.find(s => s.id === shape.id) as any;
+            if (existing?.element && existing.src === shape.src) {
+                shape.element = existing.element;
+            } else {
+                const img = new Image();
+                img.src = shape.src;
+                shape.element = img;
+                img.onload = () => this.render();
+            }
+        }
+        const idx = this.shapes.findIndex(s => s.id === shape.id);
+        if (idx !== -1) {
+            this.shapes[idx] = shape;
+        } else {
+            // Shape preview arrived before the shape-add — insert it so it renders immediately
+            this.shapes.push(shape);
+        }
+        this.render();
+    }
+
+    public applyRemoteShapeDelete(shapeId: string): void {
+        this.shapes = this.shapes.filter(s => s.id !== shapeId);
+        this.render();
     }
 }

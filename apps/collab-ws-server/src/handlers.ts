@@ -118,5 +118,29 @@ export function handleMessage(ws: WebSocket, raw: string) {
             }
             break;
         }
+
+        case 'drawing-lock': {
+            if (!peer.roomId) return;
+            const room = rooms.get(peer.roomId);
+            if (!room) return;
+            broadcast(room, { type: 'peer-drawing-start', userId: peer.userId, userName: peer.userName }, peer.userId);
+            break;
+        }
+
+        case 'drawing-unlock': {
+            if (!peer.roomId) return;
+            const room = rooms.get(peer.roomId);
+            if (!room) return;
+            broadcast(room, { type: 'peer-drawing-end', userId: peer.userId }, peer.userId);
+            break;
+        }
+
+        case 'canvas-clear': {
+            if (!peer.roomId) return;
+            const room = rooms.get(peer.roomId);
+            if (!room) return;
+            broadcast(room, { type: 'peer-canvas-clear', userId: peer.userId, userName: peer.userName }, peer.userId);
+            break;
+        }
     }
 }
