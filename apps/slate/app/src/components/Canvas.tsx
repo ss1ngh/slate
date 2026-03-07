@@ -187,7 +187,7 @@ export default function Canvas() {
           <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200/50 rounded-xl shadow-[0_10px_30px_rgb(0,0,0,0.1)] overflow-hidden flex flex-col py-1">
             <button
               onClick={() => {
-                engineRef.current?.exportImage();
+                engineRef.current?.downloadImage();
                 setIsMenuOpen(false);
               }}
               className="flex items-center gap-2 px-4 py-2.5 text-slate-700 hover:text-indigo-600 hover:bg-slate-50 transition-colors text-sm w-full text-left"
