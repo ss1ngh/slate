@@ -53,6 +53,7 @@ export default function Canvas() {
   useEffect(() => {
     if (canvasRef.current && !engineRef.current) {
       engineRef.current = new SlateEngine(canvasRef.current);
+      collab.bindEngine(engineRef.current);
 
       // Sync engine state to React
       engineRef.current.onZoomChange = (z: number) => setZoom(z);

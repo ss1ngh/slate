@@ -59,10 +59,7 @@ export function useCollab(engineRef: React.RefObject<SlateEngine | null>): UseCo
     }, []);
 
     // --- Wire engine callbacks so local changes go out to the server ---
-    useEffect(() => {
-        const engine = engineRef.current;
-        if (!engine) return;
-
+    const bindEngine = useCallback((engine: SlateEngine) => {
         engine.onShapeAdd = (shape) => {
             if (!roomIdRef.current) return;
             sendMsg({ type: 'shape-add', shape });
@@ -98,17 +95,7 @@ export function useCollab(engineRef: React.RefObject<SlateEngine | null>): UseCo
             if (!roomIdRef.current) return;
             sendMsg({ type: 'canvas-clear' });
         };
-
-        return () => {
-            engine.onShapeAdd = undefined;
-            engine.onShapeUpdate = undefined;
-            engine.onShapeDelete = undefined;
-            engine.onShapePreview = undefined;
-            engine.onDrawingStart = undefined;
-            engine.onDrawingEnd = undefined;
-            engine.onCanvasClear = undefined;
-        };
-    }, [engineRef, sendMsg]);
+    }, [sendMsg]);
 
     // --- Open WebSocket and handle incoming messages ---
     const openSocket = useCallback((): Promise<WebSocket> => {
@@ -324,5 +311,23 @@ export function useCollab(engineRef: React.RefObject<SlateEngine | null>): UseCo
         });
     }, [peers]);
 
-    return { status, roomId, userId, isHost, peers, remoteCursors, remoteDrawingUser, remoteClearEvent, createRoom, joinRoom, leaveRoom, sendCursor, acceptRemoteClear, error };
+    return { status, roomId, userId, isHost, peers, remoteCursors, remoteDrawingUser, remoteClearEvent, createRoom, joinRoom, leaveRoom, sendCursor, acceptRemoteClear, bindEngine, error };
+}
+
+export interface UseCollabReturn {
+    status: CollabStatus;
+    roomId: string | null;
+    userId: string | null;
+    isHost: boolean;
+    peers: PeerInfo[];
+    remoteCursors: Map<string, RemoteCursor>;
+    remoteDrawingUser: { userId: string; userName: string } | null;
+    remoteClearEvent: { userId: string; userName: string } | null;
+    createRoom: (opts: { userName: string; userColor: string; password?: string }) => void;
+    joinRoom: (opts: { roomId: string; userName: string; userColor: string; password?: string }) => void;
+    leaveRoom: () => void;
+    sendCursor: (x: number, y: number) => void;
+    acceptRemoteClear: () => void;
+    bindEngine: (engine: SlateEngine) => void;
+    error: string | null;
 }
