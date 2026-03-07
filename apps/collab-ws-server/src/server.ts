@@ -3,7 +3,7 @@ import { handleMessage } from './handlers';
 import { cleanupPeer, generateUserId } from './utils';
 import { peerMap } from './state';
 
-const PORT = 8080;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
 const wss = new WebSocketServer({ port: PORT });
 
 wss.on('connection', (ws) => {
@@ -13,17 +13,17 @@ wss.on('connection', (ws) => {
     userId: generateUserId(),
     userName: 'Unknown',
     userColor: '#6366f1',
-    roomId: null, 
+    roomId: null,
     isHost: false,
   });
-  
+
   console.log('User connected');
 
   ws.on('error', (err) => console.error('WS error:', err.message));
-  
+
   //pass the raw buffer directly to your switchboard
   ws.on('message', (raw) => handleMessage(ws, raw.toString()));
-  
+
   ws.on('close', () => {
     cleanupPeer(ws);
     console.log('User disconnected');

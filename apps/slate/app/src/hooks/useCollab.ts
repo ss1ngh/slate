@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PeerInfo, ServerMessage } from '@repo/shared';
 import type { SlateEngine } from '../canvas-engine/engine';
 
-const WS_URL = 'ws://localhost:8080';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080';
 
 export interface RemoteCursor {
     userId: string;
