@@ -1,30 +1,33 @@
-import { WebSocketServer, WebSocket } from "ws";
+import { WebSocketServer } from 'ws';
+import { handleMessage } from './handlers';
+import { cleanupPeer, generateUserId } from './utils';
+import { peerMap } from './state';
 
-const wss = new WebSocketServer({ port : 8080});
-
-const rooms = new Map<string, Set<WebSocket>>();
+const PORT = 8080;
+const wss = new WebSocketServer({ port: PORT });
 
 wss.on('connection', (ws) => {
-    console.log("New user connected")
+  //register a placeholder peer immediately in the global lobby
+  peerMap.set(ws, {
+    ws,
+    userId: generateUserId(),
+    userName: 'Unknown',
+    userColor: '#6366f1',
+    roomId: null, 
+    isHost: false,
+  });
+  
+  console.log('User connected');
 
-    ws.on('error', (error) => {
-        console.error('Error : ', error);
-    })
+  ws.on('error', (err) => console.error('WS error:', err.message));
+  
+  //pass the raw buffer directly to your switchboard
+  ws.on('message', (raw) => handleMessage(ws, raw.toString()));
+  
+  ws.on('close', () => {
+    cleanupPeer(ws);
+    console.log('User disconnected');
+  });
+});
 
-    ws.on('message', (data) => {
-       const parsedMessage = JSON.parse(data.toString());
-       console.log("Received message : ", parsedMessage);
-
-       wss.clients.forEach((client)=> {
-        if(client.readyState === 1) {
-            client.send(parsedMessage);
-        }
-       })
-    })
-
-    ws.on('close', ()=> {
-        console.log("User Disconnected");
-    })
-})
-
-console.log('Chat server is running on ws://localhost:8080');
+console.log(`✅ Collab WS server running on ws://localhost:${PORT}`);
