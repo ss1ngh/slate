@@ -33,7 +33,7 @@ export function broadcast(room : Room, msg : ServerMessage, excludeUserId? : str
 }
 
 export function getPeerInfo(peer : Peer) : PeerInfo {
-    return { userId : peer.userId, userName : peer.userName, userColor : peer.userColor, isHost : peer.isHost };
+    return { userId : peer.userId, userName : peer.userName, userColor : peer.userColor };
 }
 
 export function cleanupPeer(ws : WebSocket) {

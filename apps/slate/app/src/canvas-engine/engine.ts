@@ -1,4 +1,4 @@
-import { DiamondShape, Shape, ShapeType, ToolType, ImageShape } from "../config/types";
+import { DiamondShape, Shape, ShapeType, ToolType, ImageShape } from "@repo/shared";
 import { generateId } from "../config/utils";
 import { getStroke } from "perfect-freehand";
 
