@@ -112,7 +112,7 @@ export function handleMessage(ws: WebSocket, raw: string) {
 
             // Relay the full canvas state to all non-host peers waiting for sync
             for (const p of room.peers.values()) {
-                if (!p.isHost) {
+                if (!p.isHost && (!msg.targetId || p.userId === msg.targetId)) {
                     send(p.ws, { type: 'full-sync', shapes: msg.shapes });
                 }
             }

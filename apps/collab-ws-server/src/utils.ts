@@ -18,36 +18,36 @@ export function generateUserId(): string {
     return Math.random().toString(36).slice(2, 10);
 }
 
-export function send(ws : WebSocket, msg : ServerMessage) {
-    if(ws.readyState === 1) {
+export function send(ws: WebSocket, msg: ServerMessage) {
+    if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(msg));
     }
 }
 
-export function broadcast(room : Room, msg : ServerMessage, excludeUserId? : string) {
-    for(const peer of room.peers.values()) {
-        if(peer.userId !== excludeUserId) {
+export function broadcast(room: Room, msg: ServerMessage, excludeUserId?: string) {
+    for (const peer of room.peers.values()) {
+        if (peer.userId !== excludeUserId) {
             send(peer.ws, msg);
         }
     }
 }
 
-export function getPeerInfo(peer : Peer) : PeerInfo {
-    return { userId : peer.userId, userName : peer.userName, userColor : peer.userColor };
+export function getPeerInfo(peer: Peer): PeerInfo {
+    return { userId: peer.userId, userName: peer.userName, userColor: peer.userColor };
 }
 
-export function cleanupPeer(ws : WebSocket) {
+export function cleanupPeer(ws: WebSocket) {
     const peer = peerMap.get(ws);
-    if(!peer) return;
+    if (!peer) return;
 
     peerMap.delete(ws);
-    if(!peer.roomId) return;
+    if (!peer.roomId) return;
 
     const room = rooms.get(peer.roomId);
-    if(!room) return; 
+    if (!room) return;
 
     room.peers.delete(peer.userId);
-    broadcast(room, { type: 'peer-left', userId: peer.userId, userName: peer.userName   });
+    broadcast(room, { type: 'peer-left', userId: peer.userId, userName: peer.userName });
 
     // If host left, promote the next peer
     if (peer.isHost && room.peers.size > 0) {
@@ -55,7 +55,7 @@ export function cleanupPeer(ws : WebSocket) {
         next.isHost = true;
         console.log(`[${peer.roomId}] ${next.userName} promoted to host`);
     }
-    
+
     if (room.peers.size === 0) {
         rooms.delete(peer.roomId);
         console.log(`[${peer.roomId}] Room destroyed`);
