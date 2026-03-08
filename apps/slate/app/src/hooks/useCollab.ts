@@ -45,20 +45,20 @@ export function useCollab(engineRef: React.RefObject<SlateEngine | null>): UseCo
     const [remoteDrawingUser, setRemoteDrawingUser] = useState<{ userId: string; userName: string } | null>(null);
     const [remoteClearEvent, setRemoteClearEvent] = useState<{ userId: string; userName: string } | null>(null);
 
-    // Keep a stable ref to roomId for use inside callbacks
+    //keep a stable ref to roomId for use inside callbacks
     const roomIdRef = useRef<string | null>(null);
     const userIdRef = useRef<string | null>(null);
     roomIdRef.current = roomId;
     userIdRef.current = userId;
 
-    // --- Send helper ---
+    //send helper
     const sendMsg = useCallback((msg: object) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify(msg));
         }
     }, []);
 
-    // --- Wire engine callbacks so local changes go out to the server ---
+    //wire engine callbacks so local changes go out to the server
     const bindEngine = useCallback((engine: SlateEngine) => {
         engine.onShapeAdd = (shape) => {
             if (!roomIdRef.current) return;
@@ -75,7 +75,7 @@ export function useCollab(engineRef: React.RefObject<SlateEngine | null>): UseCo
             ids.forEach(shapeId => sendMsg({ type: 'shape-delete', shapeId }));
         };
 
-        // Stream in-progress shape to peers so they see drawing in real-time
+        //stream in-progress shape to peers so they see drawing in real-time
         engine.onShapePreview = (shape) => {
             if (!roomIdRef.current) return;
             sendMsg({ type: 'shape-update', shape });
@@ -97,7 +97,7 @@ export function useCollab(engineRef: React.RefObject<SlateEngine | null>): UseCo
         };
     }, [sendMsg]);
 
-    // --- Open WebSocket and handle incoming messages ---
+    //open WebSocket and handle incoming messages
     const openSocket = useCallback((): Promise<WebSocket> => {
         return new Promise((resolve, reject) => {
             // Close any existing connection
@@ -241,7 +241,7 @@ export function useCollab(engineRef: React.RefObject<SlateEngine | null>): UseCo
         });
     }, [engineRef, sendMsg]);
 
-    // --- Public API ---
+    //public API
 
     const createRoom = useCallback(async (opts: { userName: string; userColor: string; password?: string }) => {
         try {
@@ -287,14 +287,14 @@ export function useCollab(engineRef: React.RefObject<SlateEngine | null>): UseCo
         setRemoteClearEvent(null);
     }, [engineRef]);
 
-    // Cleanup on unmount
+    //cleanup on unmount
     useEffect(() => {
         return () => {
             wsRef.current?.close();
         };
     }, []);
 
-    // When a new peer joins we need to track their cursor slot too
+    //when a new peer joins we need to track their cursor slot too
     useEffect(() => {
         setRemoteCursors(prev => {
             const next = new Map(prev);
