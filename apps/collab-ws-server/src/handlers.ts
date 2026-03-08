@@ -4,6 +4,10 @@ import { peerMap, rooms } from "./state";
 import { broadcast, generateRoomId, getPeerInfo, send } from "./utils";
 import { Room } from "./types";
 
+
+//raw buffer comes in
+//json.parse(raw)
+//
 export function handleMessage(ws: WebSocket, raw: string) {
     let msg: ClientMessage;
 
@@ -24,25 +28,26 @@ export function handleMessage(ws: WebSocket, raw: string) {
             peer.roomId = roomId;
             peer.isHost = true;
 
-            const room: Room = {
+            const room : Room = {
                 roomId,
-                password: msg.password,
-                peers: new Map([[peer.userId, peer]])
-            };
+                password : msg.password,
+                peers : new Map([[peer.userId, peer]])
+            }
 
             rooms.set(roomId, room);
-
-            send(ws, { type: 'room-created', roomId, userId: peer.userId });
+            send(ws, {type: 'room-created', roomId , userId : peer.userId});
             console.log(`[${roomId}] Created by ${peer.userName}`);
             break;
         }
 
         case 'join-room': {
             const room = rooms.get(msg.roomId);
+            //check if room exists
             if (!room) {
                 send(ws, { type: 'error', message: 'Room not found.' });
                 return;
             }
+            //check is password matches
             if (room.password && room.password !== msg.password) {
                 send(ws, { type: 'error', message: 'Incorrect password.' });
                 return;
@@ -54,19 +59,22 @@ export function handleMessage(ws: WebSocket, raw: string) {
             peer.roomId = msg.roomId;
             peer.isHost = false;
 
+            //add peer to room.peers
             room.peers.set(peer.userId, peer);
 
+            //send data of existing peers as well to the new joinee
             const existingPeers = [...room.peers.values()]
-                .filter(p => p.userId !== peer.userId)
-                .map(getPeerInfo);
+            .filter(p => p.userId !== peer.userId)
+            .map(getPeerInfo);
 
-            send(ws, { type: 'joined', roomId: msg.roomId, userId: peer.userId, peers: existingPeers });
-            broadcast(room, { type: 'peer-joined', peer: getPeerInfo(peer) }, peer.userId);
+            send(ws, {type : 'joined', roomId:msg.roomId, userId:peer.userId, peers:existingPeers });
+            //broadcast message to everyone except joinee
+            broadcast(room, {type:'peer-joined', peer: getPeerInfo(peer)}, peer.userId);
 
-            //ask the host for a full canvas sync so the new guy can see what was already drawn
+            //ask host for a copy of the canvas so new joinee can see drawings
             const host = [...room.peers.values()].find(p => p.isHost);
-            if (host && host.userId !== peer.userId) {
-                send(host.ws, { type: 'request-sync', requesterId: peer.userId });
+            if(host && host.userId !== peer.userId) {
+                send(host.ws, {type :'request-sync', requesterId : peer.userId});
             }
 
             console.log(`[${msg.roomId}] ${peer.userName} joined (${room.peers.size} total)`);
@@ -110,7 +118,7 @@ export function handleMessage(ws: WebSocket, raw: string) {
             const room = rooms.get(peer.roomId);
             if (!room) return;
 
-            // Relay the full canvas state to all non-host peers waiting for sync
+            //relay the full canvas state to all non-host peers waiting for sync
             for (const p of room.peers.values()) {
                 if (!p.isHost && (!msg.targetId || p.userId === msg.targetId)) {
                     send(p.ws, { type: 'full-sync', shapes: msg.shapes });
