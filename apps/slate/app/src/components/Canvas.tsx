@@ -15,7 +15,8 @@ import { Caveat } from 'next/font/google';
 const caveat = Caveat({ subsets: ['latin'], weight: ['400', '600'] });
 
 export default function Canvas() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const staticCanvasRef = useRef<HTMLCanvasElement>(null);
+  const interactiveCanvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -51,8 +52,11 @@ export default function Canvas() {
   }, [remoteDrawingUser]);
 
   useEffect(() => {
-    if (canvasRef.current && !engineRef.current) {
-      engineRef.current = new SlateEngine(canvasRef.current);
+    if (staticCanvasRef.current && interactiveCanvasRef.current && !engineRef.current) {
+      engineRef.current = new SlateEngine(
+        staticCanvasRef.current,
+        interactiveCanvasRef.current
+      );
       collab.bindEngine(engineRef.current);
 
       // Sync engine state to React
@@ -405,25 +409,35 @@ export default function Canvas() {
         </Link>
       </div>
 
-      <canvas
-        ref={canvasRef}
-        onMouseMove={(e) => {
-          collab.sendCursor(e.clientX, e.clientY);
-        }}
-        onMouseDown={(e) => {
-          setHasInteracted(true);
-          engineRef.current?.handleMouseDown(e);
-          // Sync selection state if in select tool
-          if (activeTool === 'select' && engineRef.current) {
-            const shapes = engineRef.current.selectedShapes || [];
-            setSelectedIds(shapes.map((shape: any) => shape.id));
-          } else {
-            setSelectedIds([]);
-          }
-        }}
-        className="w-full h-full touch-none block"
-        onContextMenu={(e) => e.preventDefault()}
-      />
+
+      <div className="absolute inset-0">
+        {/* Static canvas -  the bottom layer */}
+        <canvas
+          ref={staticCanvasRef}
+          className="absolute inset-0 w-full h-full block"
+        />
+
+        { /* Interactive canvas - top layer*/}
+        <canvas
+          ref={interactiveCanvasRef}
+          onMouseMove={(e) => {
+            collab.sendCursor(e.clientX, e.clientY);
+          }}
+          onMouseDown={(e) => {
+            setHasInteracted(true);
+            engineRef.current?.handleMouseDown(e);
+
+            if (activeTool === 'select' && engineRef.current) {
+              const shapes = engineRef.current.selectedShapes || [];
+              setSelectedIds(shapes.map((shape: any) => shape.id));
+            } else {
+              setSelectedIds([]);
+            }
+          }}
+          className="absolute inset-0 w-full h-full touch-none block"
+          onContextMenu={(e) => e.preventDefault()}
+        />
+      </div>
 
       {/* Drawing lock overlay — invisible blocker while someone is drawing */}
       {remoteDrawingUser && (
